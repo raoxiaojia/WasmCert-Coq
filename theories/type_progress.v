@@ -1156,8 +1156,8 @@ Qed.
 
 Theorem t_progress: forall s f es ts hs,
     config_typing s f es ts ->
-    terminal_form es \/
-    exists s' f' es' hs', reduce hs s f es hs' s' f' es'.
+    terminal_form es +
+    {s' & {f' & {es' & { hs' | reduce hs s f es hs' s' f' es'} } } }.
 Proof.
   move => s f es ts hs HType.
   inversion HType. inversion H0. inversion H5. subst.

@@ -1561,7 +1561,7 @@ Lemma store_extension_reduce: forall s f es s' f' es' C tf loc lab ret hs hs',
     inst_typing s f.(f_inst) C ->
     e_typing s (upd_label (upd_local_return C loc ret) lab) es tf ->
     store_typing s ->
-    store_extension s s' /\ store_typing s'.
+    store_extension s s' * store_typing s'.
 Proof.
   move => s f es s' f' es' C tf loc lab ret hs hs' HReduce.
   generalize dependent C. generalize dependent tf.

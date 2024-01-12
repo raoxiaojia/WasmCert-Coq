@@ -499,14 +499,17 @@ Definition to_b_single_opt (e: administrative_instruction) : option basic_instru
 Definition to_b_list_opt (es: seq administrative_instruction) : option (seq basic_instruction) :=
   those (map to_b_single_opt es).
 
-Definition e_is_basic (e: administrative_instruction) :=
-  exists be, e = AI_basic be.
+Definition e_is_basic (e: administrative_instruction): bool :=
+  match e with
+  | AI_basic _ => true
+  | _ => false
+  end.
 
-Fixpoint es_is_basic (es: seq administrative_instruction) :=
+Fixpoint es_is_basic (es: seq administrative_instruction): bool :=
   match es with
-  | [::] => True
+  | [::] => true
   | e :: es' =>
-    e_is_basic e /\ es_is_basic es'
+    e_is_basic e && es_is_basic es'
   end.
 
 Definition v_to_e (v: value) : administrative_instruction :=

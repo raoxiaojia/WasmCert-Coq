@@ -90,7 +90,7 @@ Inductive relop_type_agree: value_type -> relop -> Prop :=
   | Relop_f64_agree: forall op, relop_type_agree T_f64 (Relop_f op)
   .
   
-Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Prop :=
+Inductive be_typing : t_context -> seq basic_instruction -> function_type -> Type :=
 | bet_const : forall C v, be_typing C [::BI_const v] (Tf [::] [::typeof v])
 | bet_unop : forall C t op,
     unop_type_agree t op -> be_typing C [::BI_unop t op] (Tf [::t] [::t])
@@ -278,7 +278,7 @@ Definition inst_typing (s : store_record) (inst : instance) (C : t_context) : bo
   | _ => false
   end.
 
-Inductive frame_typing: store_record -> frame -> t_context -> Prop :=
+Inductive frame_typing: store_record -> frame -> t_context -> Type :=
 | mk_frame_typing: forall s i tvs C f,
     inst_typing s i C ->
     f.(f_inst) = i ->
@@ -301,7 +301,7 @@ Proof.
   by move: H1 => [H1].
 Qed.
 
-Inductive cl_typing : store_record -> function_closure -> function_type -> Prop :=
+Inductive cl_typing : store_record -> function_closure -> function_type -> Type :=
   | cl_typing_native : forall i s C C' ts t1s t2s es tf,
     inst_typing s i C ->
     tf = Tf t1s t2s ->
@@ -312,7 +312,7 @@ Inductive cl_typing : store_record -> function_closure -> function_type -> Prop 
     cl_typing s (FC_func_host tf h) tf
   .
 
-Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+Inductive e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Type :=
 | ety_a : forall s C bes tf,
   be_typing C bes tf -> e_typing s C (to_e_list bes) tf
 | ety_composition : forall s C es e t1s t2s t3s,
@@ -338,7 +338,7 @@ Inductive e_typing : store_record -> t_context -> seq administrative_instruction
   length ts = n ->
   e_typing s C [::AI_label n e0s es] (Tf [::] t2s)
 
-with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
+with s_typing : store_record -> option (seq value_type) -> frame -> seq administrative_instruction -> seq value_type -> Type :=
 | mk_s_typing : forall s f es rs ts C C0,
   frame_typing s f C0 ->
   C = upd_return C0 rs ->
@@ -347,10 +347,10 @@ with s_typing : store_record -> option (seq value_type) -> frame -> seq administ
   s_typing s rs f es ts
 .
 
-Scheme e_typing_ind' := Induction for e_typing Sort Prop
-  with s_typing_ind' := Induction for s_typing Sort Prop.
+Scheme e_typing_ind' := Induction for e_typing Sort Type
+  with s_typing_ind' := Induction for s_typing Sort Type.
 
-Definition cl_typing_self (s : store_record) (fc : function_closure) : Prop :=
+Definition cl_typing_self (s : store_record) (fc : function_closure) : Type :=
   cl_typing s fc (cl_type fc).
 
 Lemma cl_typing_unique : forall s cl tf, cl_typing s cl tf -> tf = cl_type cl.
@@ -361,7 +361,7 @@ Proof.
 Qed.
 
 Definition cl_type_check_single (s:store_record) (f:function_closure):=
-  exists tf, cl_typing s f tf.
+  { tf & cl_typing s f tf}.
 
 Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
   match tcl_index with
@@ -385,15 +385,15 @@ Definition mem_agree (m : memory) : Prop :=
   | Some n => N.le (mem_size m) n
   end.
 
-Definition store_typing (s : store_record) : Prop :=
+Definition store_typing (s : store_record) : Type :=
   match s with
   | Build_store_record fs tclss mss gs =>
-    List.Forall (cl_type_check_single s) fs /\
-    List.Forall (tab_agree s) tclss /\
-    List.Forall mem_agree mss
+    common.TProp.Forall (cl_type_check_single s) fs *
+    (List.Forall (tab_agree s) tclss /\
+    List.Forall mem_agree mss)
   end.
 
-Inductive config_typing : store_record -> frame -> seq administrative_instruction -> seq value_type -> Prop :=
+Inductive config_typing : store_record -> frame -> seq administrative_instruction -> seq value_type -> Type :=
 | mk_config_typing :
   forall s f es ts,
   store_typing s ->

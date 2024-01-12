@@ -307,19 +307,18 @@ Qed.
 Lemma to_e_list_basic: forall bes,
     es_is_basic (to_e_list bes).
 Proof.
-  induction bes => //=.
-  split => //=.
-  unfold e_is_basic. by eauto.
+  by induction bes => //=.
 Qed.
 
 Lemma basic_concat: forall es1 es2,
     es_is_basic (es1 ++ es2) ->
-    es_is_basic es1 /\ es_is_basic es2.
+    es_is_basic es1 && es_is_basic es2.
 Proof.
   induction es1 => //=.
-  move => es2 H. destruct H.
-  apply IHes1 in H0. destruct H0.
-  by repeat split => //=.
+  move => es2 /andP [? IH].
+  apply IHes1 in IH.
+  move/andP in IH; destruct IH as [??].
+  by apply/andP => //; split => //; (apply/andP; split => //).
 Qed.
 
 Lemma basic_split: forall es1 es2,
@@ -328,8 +327,9 @@ Lemma basic_split: forall es1 es2,
     es_is_basic (es1 ++ es2).
 Proof.
   induction es1 => //=.
-  move => es2 H1 H2.
+  move => es2 /andP H1 H2.
   destruct H1.
+  apply/andP.
   split => //=.
   by apply IHes1.
 Qed.
@@ -340,10 +340,9 @@ Lemma const_list_is_basic: forall es,
 Proof.
   induction es => //=.
   move => H. move/andP in H. destruct H.
-  split.
-  - destruct a => //.
-    unfold e_is_basic. by eauto.
-  - by apply IHes.                                 
+  apply/andP.
+  split; first by destruct a => //.
+  by apply IHes.                                 
 Qed.
 
 Lemma vs_to_vts_cat: forall vs1 vs2,
@@ -406,10 +405,10 @@ Lemma e_b_elim: forall bes es,
 Proof.
   induction bes; move => es H1 H2 => //=.
   - by destruct es => //=.
-  - destruct es => //=. simpl in H1. simpl in H2. destruct H2.
+  - destruct es => //=. simpl in H1. simpl in H2. move/andP in H2. destruct H2.
     inversion H1; subst.
-    inversion H; subst => //=.
-    f_equal. apply IHbes => //=.
+    f_equal; first by destruct a0 => //.
+    by apply IHbes => //=.
 Qed.
     
 Lemma to_e_list_injective: forall bes bes',
@@ -629,6 +628,8 @@ Ltac call_unfold v cont :=
     | let v := unfold_root v in
       cont v ].
 
+Check es_is_basic.
+
 (** Perform basic simplifications of [es_is_basic]. **)
 Ltac basic_inversion :=
    repeat lazymatch goal with
@@ -691,7 +692,7 @@ Variable host_function : eqType.
 
 Let store_record := store_record host_function.
 Let function_closure := function_closure host_function.
-Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Prop :=
+Let e_typing : store_record -> t_context -> seq administrative_instruction -> function_type -> Type :=
   @e_typing _.
 
 (** Additional List properties **)
@@ -846,8 +847,8 @@ Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf ts (ts ++ t2s)).
 Proof.
   move => C es ts t2s HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply bet_weakening.
-  by rewrite cats0 in H.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))) as Hbet; first by apply bet_weakening.
+  by rewrite cats0 in Hbet.
 Qed.
 
 Lemma et_weakening_empty_1: forall s C es ts t2s,
@@ -855,8 +856,8 @@ Lemma et_weakening_empty_1: forall s C es ts t2s,
     e_typing s C es (Tf ts (ts ++ t2s)).
 Proof.
   move => s C es ts t2s HType.
-  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))); first by apply ety_weakening.
-  by rewrite cats0 in H.
+  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))) as Hbet; first by apply ety_weakening.
+  by rewrite cats0 in Hbet.
 Qed.
 
 Lemma bet_weakening_empty_2: forall C es ts t1s,
@@ -864,8 +865,8 @@ Lemma bet_weakening_empty_2: forall C es ts t1s,
     be_typing C es (Tf (ts ++ t1s) ts).
 Proof.
   move => C es ts t1s HType.
-  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
+  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))) as Hbet; first by apply bet_weakening.
+  by rewrite cats0 in Hbet.
 Qed.
 
 Lemma bet_weakening_empty_both: forall C es ts,
@@ -873,8 +874,8 @@ Lemma bet_weakening_empty_both: forall C es ts,
     be_typing C es (Tf ts ts).
 Proof.
   move => C es ts HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))); first by apply bet_weakening.
-  by rewrite cats0 in H.
+  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))) as Hbet; first by apply bet_weakening.
+  by rewrite cats0 in Hbet.
 Qed.
 
 Lemma empty_typing: forall C t1s t2s,
@@ -894,10 +895,12 @@ Lemma et_to_bet: forall s C es ts,
     be_typing C (to_b_list es) ts.
 Proof.
   move => s C es ts HBasic HType.
-  dependent induction HType; basic_inversion.
+  induction HType; basic_inversion.
   + replace (to_b_list (to_e_list bes)) with bes => //.
     by apply b_e_elim.
   + rewrite to_b_list_concat.
+    apply basic_concat in HBasic.
+    move/andP in HBasic; destruct HBasic as [Hes He].
     eapply bet_composition.
     * by eapply IHHType1 => //.
     * by eapply IHHType2 => //.
@@ -1260,7 +1263,7 @@ Lemma cat_cons_not_nil : forall T (xs : list T) y ys,
   xs ++ (y :: ys) <> [::].
 Proof. move => T xs y ys E. by move: (List.app_eq_nil _ _ E) => [? ?]. Qed.
 
-Lemma not_reduce_simple_nil : forall es', ~ reduce_simple [::] es'.
+Lemma not_reduce_simple_nil : forall es', reduce_simple [::] es' -> False.
 Proof.
   assert (forall es es', reduce_simple es es' -> es = [::] -> False) as H.
   { move => es es' H.
@@ -1895,7 +1898,7 @@ Proof.
   { intros. destruct ves => //. }
   { intros. destruct ves => //. }
   { intros. by destruct ves => //. }
-  { intros. apply: lfilled_not_nil. exact H1. exact H0. }
+  { intros. apply: lfilled_not_nil. exact e. done. }
 Qed.
 
 End Host.
