@@ -551,6 +551,18 @@ Proof.
     + by apply: IH.
 Qed.
 
+Lemma Forall_nth_error : forall A (P : A -> Type) l,
+  Forall P l ->
+  forall n e, List.nth_error l n = Some e -> P e.
+Proof.
+  move=> A P l. elim {l}.
+  - by move => n e'; destruct n.
+  - move=> e l Pe F IH n e' /=.
+    case n => //=.
+    + by move => [<-].
+    + move => n'. by apply IH.
+Qed.
+
 Lemma forall_Forall : forall A (P : A -> Prop) l,
   (forall e, List.In e l -> P e) ->
   Forall P l.

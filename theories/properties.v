@@ -8,6 +8,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Notation " A ** B " := (prod A B)%type (at level 20, right associativity).
+
 (** * Basic Lemmas **)
 
 (** List operations **)
@@ -895,7 +897,7 @@ Lemma et_to_bet: forall s C es ts,
     be_typing C (to_b_list es) ts.
 Proof.
   move => s C es ts HBasic HType.
-  induction HType; basic_inversion.
+  induction HType => //; basic_inversion.
   + replace (to_b_list (to_e_list bes)) with bes => //.
     by apply b_e_elim.
   + rewrite to_b_list_concat.
@@ -923,10 +925,10 @@ Hint Constructors be_typing : core.
 (** A helper tactic for proving [composition_typing_single]. **)
 Ltac auto_prove_bet:=
   repeat lazymatch goal with
-  | H: _ |- exists ts t1s t2s t3s, ?tn = ts ++ t1s /\ ?tm = ts ++ t2s /\
-                                   be_typing _ [::] (Tf _ _) /\ _ =>
-    try exists [::], tn, tm, tn; try eauto
-  | H: _ |- _ /\ _ =>
+  | H: _ |- { ts & { t1s & {t2s & { t3s & ((?tn = ts ++ t1s) ** (?tm = ts ++ t2s) **
+                                   be_typing _ nil (Tf _ _) ** _)}}}} =>
+    try exists nil, tn, tm, tn; try eauto
+  | H: _ |- (_ * _)%type =>
     split => //=; try eauto
   | H: _ |- be_typing _ [::] (Tf ?es ?es) =>
     apply bet_weakening_empty_both; try by []
@@ -934,10 +936,10 @@ Ltac auto_prove_bet:=
 
 Lemma composition_typing_single: forall C es1 e t1s t2s,
     be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             be_typing C es1 (Tf t1s' t3s) /\
-                             be_typing C [::e] (Tf t3s t2s').
+    {ts & {t1s' & {t2s' & {t3s & ((t1s = ts ++ t1s') **
+                             (t2s = ts ++ t2s') **
+                             be_typing C es1 (Tf t1s' t3s) **
+                             be_typing C [::e] (Tf t3s t2s'))}}}}.
 Proof.
   move => C es1 e t1s t2s HType.
   gen_ind_subst HType; extract_listn; auto_prove_bet.
@@ -945,23 +947,23 @@ Proof.
   + by destruct es1 => //=.
   + apply concat_cancel_last in H1. destruct H1. subst.
     by exists [::], t1s0, t2s0, t2s.
-  + edestruct IHHType; eauto.
-    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
-    exists (ts ++ x), t1s', t2s', t3s'.
+  + edestruct IHHType as [t1s' [t2s' [t3s' [t4s' Heq]]]]; eauto.
+    destruct Heq as [-> [-> [Hbet1 Hbet2]]].
+    exists (ts ++ t1s'), t2s', t3s', t4s'.
     by repeat split => //=; rewrite -catA.
 Qed.
 
 Lemma composition_typing: forall C es1 es2 t1s t2s,
     be_typing C (es1 ++ es2) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             be_typing C es1 (Tf t1s' t3s) /\
-                             be_typing C es2 (Tf t3s t2s').
+    {ts & {t1s' & {t2s' & {t3s & ((t1s = ts ++ t1s') **
+                             (t2s = ts ++ t2s') **
+                             be_typing C es1 (Tf t1s' t3s) **
+                             be_typing C es2 (Tf t3s t2s'))}}}}.
 Proof.
   move => C es1 es2.
   remember (rev es2) as es2'.
   assert (es2 = rev es2'); first by (rewrite Heqes2'; symmetry; apply revK).
-  generalize dependent es1.
+  move: es1.
   clear Heqes2'. subst.
   induction es2' => //=; move => es1 t1s t2s HType.
   - unfold rev in HType; simpl in HType. subst.
@@ -987,19 +989,19 @@ Qed.
 
 Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
     e_typing s C (es1 ++ [::e]) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             e_typing s C es1 (Tf t1s' t3s) /\
-                             e_typing s C [::e] (Tf t3s t2s').
+    {ts & {t1s' & {t2s' & {t3s & ((t1s = ts ++ t1s') **
+                             (t2s = ts ++ t2s') **
+                             e_typing s C es1 (Tf t1s' t3s) **
+                             e_typing s C [::e] (Tf t3s t2s'))}}}}.
 Proof.
   move => s C es1 es2 t1s t2s HType.
-  gen_ind_subst HType; extract_listn.
+  gen_ind_subst HType; extract_listn => //.
   - (* basic *)
-    apply b_e_elim in H3. destruct H3. subst.
-    rewrite to_b_list_concat in H.
-    apply composition_typing in H.
-    apply basic_concat in H1. destruct H1.
-    destruct H as [ts' [t1s' [t2s' [t3s' [H2 [H3 [H4 H5]]]]]]]. subst.
+    apply b_e_elim in H2. destruct H2. subst.
+    rewrite to_b_list_concat in b.
+    apply composition_typing in b.
+    apply basic_concat in H0; move/andP in H0; destruct H0.
+    destruct b as [ts' [t1s' [t2s' [t3s' [-> [-> [H4 H5]]]]]]].
     exists ts', t1s', t2s', t3s'.
     by repeat split => //=; apply ety_a' => //=.
   - (* composition *)
@@ -1007,7 +1009,7 @@ Proof.
     by exists [::], t1s0, t2s0, t2s.
   - (* weakening *)
     edestruct IHHType; eauto.
-    destruct H as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
+    destruct s as [t1s' [t2s' [t3s' [H1 [H2 [H3 H4]]]]]]. subst.
     exists (ts ++ x), t1s', t2s', t3s'.
     by repeat split => //; rewrite catA.
   - (* Trap *)
@@ -1031,10 +1033,10 @@ Qed.
 
 Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
     e_typing s C (es1 ++ es2) (Tf t1s t2s) ->
-    exists ts t1s' t2s' t3s, t1s = ts ++ t1s' /\
-                             t2s = ts ++ t2s' /\
-                             e_typing s C es1 (Tf t1s' t3s) /\
-                             e_typing s C es2 (Tf t3s t2s').
+    {ts & {t1s' & {t2s' & {t3s & ((t1s = ts ++ t1s') **
+                             (t2s = ts ++ t2s') **
+                             e_typing s C es1 (Tf t1s' t3s) **
+                             e_typing s C es2 (Tf t3s t2s'))}}}}.
 Proof.
   move => s C es1 es2.
   remember (rev es2) as es2'.

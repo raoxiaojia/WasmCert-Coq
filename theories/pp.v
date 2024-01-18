@@ -4,17 +4,13 @@ Require Import Coq.Strings.String.
 From compcert Require Import Floats.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 Require Import Coq.Init.Decimal.
-Require Import bytes_pp datatypes interpreter_func.
+Require Import bytes_pp datatypes interpreter_ppi.
 Require Import BinNat.
 Require Import ansi list_extra.
 
 Open Scope string_scope.
 
 Section Host.
-
-  (*
-Import Interpreter_func_extract.
-   *)
 
 Variable host_function: eqType.
   
@@ -419,25 +415,6 @@ Definition pp_config_tuple_except_store (cfg : store_record host_function * fram
   let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
-
-Definition pp_res_tuple_except_store (res_cfg : store_record host_function * frame * res_step) : string :=
-  let '(s, f, res) := res_cfg in
-  match res with
-  | RS_crash _ =>
-    "crash" ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_break n vs =>
-    "break " ++ string_of_nat n ++ "  " ++ pp_values_hint_empty vs ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_return vs_res =>
-    "return " ++ pp_values_hint_empty vs_res ++ newline ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  | RS_normal es =>
-    "normal" ++ newline ++
-    String.concat "" (List.map (pp_administrative_instruction 1) es) ++
-    "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
-  end.
-
 End Host.
 
 (** As-is, [eqType] tends not to extract well.
@@ -451,9 +428,6 @@ Section Show.
 Definition pp_values : list value -> string := pp_values.
 
 Definition pp_store : nat -> store_record -> string := pp_store host_function_eqType.
-
-Definition pp_res_tuple_except_store : store_record * frame * res_step -> string :=
-  pp_res_tuple_except_store host_function_eqType.
 
 Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
   pp_config_tuple_except_store host_function_eqType.

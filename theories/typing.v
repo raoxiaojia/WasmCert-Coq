@@ -360,8 +360,8 @@ Proof.
   - move => f h H; by inversion H.
 Qed.
 
-Definition cl_type_check_single (s:store_record) (f:function_closure):=
-  { tf & cl_typing s f tf}.
+Definition cl_type_check_single (s:store_record) (cl :function_closure): Type :=
+  cl_typing s cl (cl_type cl).
 
 Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
   match tcl_index with
@@ -402,4 +402,3 @@ Inductive config_typing : store_record -> frame -> seq administrative_instructio
 
 
 End Host.
-

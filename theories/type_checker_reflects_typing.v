@@ -1284,7 +1284,7 @@ Qed.
 
 Lemma type_update_type_agree: forall tm tn' tm' cts,
   c_types_agree (type_update cts (to_ct_list tn') (CT_type tm')) tm ->
-  exists lp, c_types_agree cts (lp ++ tn') /\ tm = lp ++ tm'.
+  { lp | c_types_agree cts (lp ++ tn') /\ tm = lp ++ tm'}.
 Proof with auto_rewrite_cond.
   move => tm tn' tm' cts H.
   exists (take (size tm - size tm') tm).
@@ -1392,7 +1392,7 @@ Qed.
 
 Lemma ct_suffix_1_impl: forall tm,
   ct_suffix [::CTA_any] (to_ct_list tm) ->
-  exists v tm', tm = tm' ++ [::v].
+  { v & {tm' | tm = tm' ++ [::v]}}.
 Proof.
   move => tm.
   case/lastP: tm => [|tm x] => //=.
@@ -1403,7 +1403,7 @@ Qed.
   
 Lemma type_update_select_agree_bet: forall C cts tm,
   c_types_agree (type_update_select cts) tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C [::BI_select] (Tf tn tm).
+  { tn & (c_types_agree cts tn ** be_typing C [::BI_select] (Tf tn tm))}.
 Proof with auto_rewrite_cond.
   move => C cts tm Hct.
   unfold type_update_select in Hct...
@@ -1565,7 +1565,7 @@ Qed.
     
 Lemma tc_to_bet_br: forall cts l,
   consume cts (to_ct_list l) <> CT_bot ->
-  exists tn, c_types_agree cts (tn ++ l).
+  { tn | c_types_agree cts (tn ++ l)}.
 Proof with auto_rewrite_cond.
   move => cts l Hconsume.
   destruct cts as [ctst | cts | ]=> //.
@@ -1650,12 +1650,12 @@ Lemma tc_to_bet_conj d:
   be_size_list bes <= d ->
   check C bes cts = cts' ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf tn tm)) /\
+  { tn & c_types_agree cts tn ** be_typing C bes (Tf tn tm)}) **
   ( forall C cts tm e cts',
   be_size_single e <= d ->
   check_single C cts e = cts' ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C ([:: e]) (Tf tn tm)).
+  { tn & c_types_agree cts tn ** be_typing C ([:: e]) (Tf tn tm)}).
 Proof with auto_rewrite_cond.
   induction (lt_wf d) as [d _ H] => //=.
   split.
@@ -1943,7 +1943,7 @@ Qed.
 Lemma tc_to_bet_list: forall C cts bes tm cts',
   check C bes cts = cts' ->
   c_types_agree cts' tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C bes (Tf tn tm).
+  { tn & c_types_agree cts tn ** be_typing C bes (Tf tn tm)}.
 Proof.
   intros.
   specialize tc_to_bet_conj with (be_size_list bes).
@@ -1951,53 +1951,55 @@ Proof.
   by eapply H1; eauto.
 Qed.
 
-Lemma b_e_type_checker_reflects_typing:
+Definition b_e_typing_tc:
   forall C bes tf,
-    reflect (be_typing C bes tf) (b_e_type_checker C bes tf).
+    (be_typing C bes tf) -> (b_e_type_checker C bes tf).
+Proof with auto_rewrite_cond.
+  move => C bes tf Hbet.
+  destruct tf as [tn tm].
+  induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; (try by inversion u); (try by inversion b); (try by inversion r)...
+  - unfold same_lab => //=.
+    remember (ins ++ [::i]) as l.
+    rewrite - Heql.
+    destruct l => //=; first by destruct ins.
+    remember i0 as H2; clear HeqH2.
+    move/allP in i0.
+    assert (n \in (ins ++ [::i])) as Hn; first by rewrite - Heql; rewrite mem_head.
+    apply i0 in Hn.
+    move/andP in Hn; destruct Hn as [H3 H4].
+    unfold plop2 in H4.
+    replace (length (tc_label C) <= n) with false; last by lias.
+    move/eqP in H4.
+    rewrite H4.
+    apply same_lab_h_condition in H2.
+    replace (ins ++ [::i])%list with (ins ++ [::i]) in H2; last by lias.
+    rewrite - Heql in H2.
+    apply same_lab_h_rec in H2.
+    rewrite H2.
+    rewrite ct_suffix_suffix...
+  - destruct tf as [t1 t2] => /=.
+    unfold type_update...
+  + by destruct (tc_table C) eqn:Hctable => //=.
+  + rewrite List.fold_left_app => //=.
+    unfold c_types_agree in IHHbet1.
+    destruct (List.fold_left _ es _) eqn:Htc => //=.
+    * by eapply c_types_agree_suffix_single; eauto.
+    * move/eqP in IHHbet1. by subst.
+  + by apply c_types_agree_weakening.
+Defined.
+    
+Definition b_e_tc_typing:
+  forall C bes tf,
+    (b_e_type_checker C bes tf) -> (be_typing C bes tf).
 Proof with auto_rewrite_cond.
   move => C bes tf.
   destruct tf as [tn tm].
-  destruct (b_e_type_checker C bes (Tf tn tm)) eqn: Htc_bool.
-  - apply ReflectT.
-    unfold b_e_type_checker in Htc_bool.
-    fold (check C bes (CT_type tn)) in Htc_bool.
-    eapply tc_to_bet_list in Htc_bool; eauto.
-    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
-  - apply ReflectF.
-    move => Hbet.
-    assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
-    induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; try by inversion H...
-    + unfold same_lab => //=.
-      remember (ins ++ [::i]) as l.
-      rewrite - Heql.
-      destruct l => //=; first by destruct ins.
-      remember H as H2; clear HeqH2.
-      move/allP in H2.
-      assert (n \in (ins ++ [::i])) as Hn; first by rewrite - Heql; rewrite mem_head.
-      apply H2 in Hn.
-      move/andP in Hn; destruct Hn as [H3 H4].
-      unfold plop2 in H4.
-      replace (length (tc_label C) <= n) with false; last by lias.
-      move/eqP in H4.
-      rewrite H4.
-      apply same_lab_h_condition in H.
-      replace (ins ++ [::i])%list with (ins ++ [::i]) in H; last by lias.
-      rewrite - Heql in H.
-      apply same_lab_h_rec in H.
-      rewrite H.
-      rewrite ct_suffix_suffix...
-    + destruct tf as [t1 t2] => //=...
-    + destruct (List.nth_error (tc_global C) i) => //=...
-    + unfold type_update => //=...
-    + unfold type_update => //=...
-    + by destruct (tc_table C) eqn:Hctable => //=.
-    + rewrite List.fold_left_app => //=.
-      unfold c_types_agree in IHHbet1.
-      destruct (List.fold_left _ es _) eqn:Htc => //=.
-      * by eapply c_types_agree_suffix_single; eauto.
-      * move/eqP in IHHbet1. by subst.
-    + by apply c_types_agree_weakening.
-Qed.
+  move => Htc_bool.
+  unfold b_e_type_checker in Htc_bool.
+  fold (check C bes (CT_type tn)) in Htc_bool.
+  eapply tc_to_bet_list in Htc_bool; eauto.
+  by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
+Defined.
 
 End Host.
 
