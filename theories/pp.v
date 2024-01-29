@@ -432,6 +432,7 @@ Definition pp_store : nat -> store_record -> string := pp_store host_function_eq
 Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
   pp_config_tuple_except_store host_function_eqType.
 
+
 Definition pp_administrative_instructions : nat -> list administrative_instruction -> string :=
   pp_administrative_instructions.
 
