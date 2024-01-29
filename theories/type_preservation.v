@@ -3,7 +3,7 @@
 From Wasm Require Export common.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Coq Require Import Program.Equality NArith ZArith_base.
-From Wasm Require Export typing opsem properties contexts typing_inversion tactic.
+From Wasm Require Export typing opsem properties typing_inversion tactic.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
