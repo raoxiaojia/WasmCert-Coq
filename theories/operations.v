@@ -11,6 +11,8 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
+Notation " A ** B " := (prod A B)%type (at level 20, right associativity).
+
 Definition empty_t_context := Build_t_context nil nil nil nil nil nil nil None.
 
 (** read `len` bytes from `m` starting at `start_idx` *)
@@ -451,8 +453,8 @@ Definition const_list (es : seq administrative_instruction) : bool :=
   List.forallb is_const es.
 
 (* The expected terminal instructions *)
-Definition terminal_form (es: seq administrative_instruction) :=
-  const_list es \/ es = [::AI_trap].
+Definition terminal_form (es: seq administrative_instruction): Type :=
+  const_list es + (es = [::AI_trap]).
 
 Definition glob_extension (g1 g2: global) : bool :=
   ((g_mut g1 == MUT_mut) || ((g_val g1) == (g_val g2))) &&

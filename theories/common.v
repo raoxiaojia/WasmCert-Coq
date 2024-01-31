@@ -551,6 +551,16 @@ Proof.
     + by apply: IH.
 Qed.
 
+Lemma Forall_forall_t : forall A (P: A -> Type) l,
+  Forall P l ->
+  forall k e, List.nth_error l k = Some e -> P e.
+Proof.
+  move => A P l. elim {l}; first by case.
+  move => e l Pe F IH k e' Hnth.
+  destruct k as [ | k']; simpl in *; first by injection Hnth as <-.
+  by apply IH with (k := k').
+Qed.
+
 Lemma Forall_nth_error : forall A (P : A -> Type) l,
   Forall P l ->
   forall n e, List.nth_error l n = Some e -> P e.
@@ -574,6 +584,17 @@ Proof.
     + apply: IH => e' I. apply: H. by right.
 Defined.
 
+Lemma forall_Forall_t : forall A (P : A -> Type) l,
+  (forall k e, List.nth_error l k = Some e -> P e) ->
+  Forall P l.
+Proof.
+  move=> A P. elim.
+  - move=> _. by apply: Forall_nil.
+  - move=> e l IH H. apply: Forall_cons.
+    + by apply H with (k := 0).
+    + apply: IH => k e' I. by apply H with (k := S k).
+Defined.
+
 Lemma Forall_List_Forall : forall A (P : A -> Prop) l,
   Forall P l ->
   List.Forall P l.
@@ -587,6 +608,19 @@ Lemma List_Forall_Forall : forall A (P : A -> Prop) l,
 Proof.
   move=> > F. apply: forall_Forall. by apply List.Forall_forall.
 Defined.
+
+Lemma Forall_lookup {T: Type} (P: T -> Type) l i x:
+  Forall P l ->
+  List.nth_error l i = Some x ->
+  P x.
+Proof.
+  move: l i x.
+  induction l; destruct i => //=; move => x Hall Hnth.
+  - injection Hnth as ->.
+    by inversion Hall.
+  - eapply IHl; eauto => //.
+    by inversion Hall.
+Qed.
 
 Lemma Forall_cat A (P : A -> Prop) (l1 l2 : list A) (F1 : Forall P l1) (F2 : Forall P l2)
   : Forall P (l1 ++ l2).
@@ -649,6 +683,174 @@ Proof.
     move=> e2 l2. destruct (C e2); last by right; inversion 1.
     destruct (IH l2); last by right; inversion 1.
     left. by subst.
+Defined.
+
+Lemma list_eq {T: Type} (l1 l2: list T):
+  (forall i, List.nth_error l1 i = List.nth_error l2 i) -> l1 = l2.
+Proof.
+  move: l1 l2.
+  induction l1; destruct l2 => //=; move => H; try by specialize (H 0).
+  f_equal.
+  - specialize (H 0); by injection H.
+  - apply IHl1; move => i.
+    by specialize (H (S i)).
+Qed.
+
+Lemma Forall_spec {T: Type} (P: T -> Type) (l: list T):
+  (forall n x, List.nth_error l n = Some x -> P x) ->
+  Forall P l.
+Proof.
+  induction l; move => Hspec => //; first by constructor.
+  constructor.
+  - by eapply (Hspec 0 a).
+  - apply IHl.
+    move => n x Hnth.
+    by apply (Hspec (S n) x).
+Qed.
+
+Inductive Forall2 (A B : Type) (R : A -> B -> Type) : seq A -> seq B -> Type :=
+  | Forall2_nil : Forall2 R nil nil
+  | Forall2_cons : forall x y l1 l2, R x y -> Forall2 R l1 l2 -> Forall2 R (x :: l1) (y :: l2)
+.
+
+Lemma Forall2_length {T1 T2: Type} (f: T1 -> T2 -> Type) l1 l2:
+  Forall2 f l1 l2 ->
+  length l1 = length l2.
+Proof.
+  move: l1 l2.
+  induction l1; destruct l2 => //=; move => H; inversion H; subst; clear H.
+  f_equal; by apply IHl1.
+Qed.
+
+Lemma Forall2_lookup {T1 T2: Type} (f: T1 -> T2 -> Type) l1 l2 i x:
+  Forall2 f l1 l2 ->
+  List.nth_error l1 i = Some x ->
+  { y & ((List.nth_error l2 i = Some y) * (f x y))%type }.
+Proof.
+  move: l1 l2 i x.
+  induction l1; destruct l2, i => //=; move => x Hall2 Hnth; try by inversion Hall2.
+  - injection Hnth as ->. eexists; split => //.
+    by inversion Hall2.
+  - apply IHl1 => //.
+    by inversion Hall2.
+Qed.
+
+Lemma Forall2_function_eq_cond {T1 T2: Type} (P: T1 -> Type) (f g: T1 -> T2 -> Type) l1 l2 l3:
+  Forall P l1 ->
+  Forall2 f l1 l2 ->
+  Forall2 g l1 l3 ->
+  (forall x y z, P x -> f x y -> g x z -> y = z) ->
+  l2 = l3.
+Proof.
+  move => Hall Hall2f Hall2g Heq.
+  apply list_eq.
+  move => i.
+  destruct (List.nth_error l1 i) eqn:Hnth.
+  { eapply Forall_lookup in Hall; eauto => //.
+    eapply Forall2_lookup in Hall2f as [y [Hnth1 Hf]]; eauto => //.
+    eapply Forall2_lookup in Hall2g as [z [Hnth2 Hg]]; eauto => //.
+    rewrite Hnth1 Hnth2; f_equal.
+    by eapply Heq; eauto.
+  }
+  { apply Forall2_length in Hall2f.
+    apply Forall2_length in Hall2g.
+    apply List.nth_error_None in Hnth.
+    specialize (List.nth_error_None l2 i) as [_ Hnone1].
+    rewrite Hnone1; last by lias.
+    symmetry. rewrite -> List.nth_error_None. by lias.
+  }
+Qed.
+
+Lemma Forall2_function_eq {T1 T2: Type} (f g: T1 -> T2 -> Type) l1 l2 l3:
+  Forall2 f l1 l2 ->
+  Forall2 g l1 l3 ->
+  (forall x y z, f x y -> g x z -> y = z) ->
+  l2 = l3.
+Proof.
+  move => Hall2f Hall2g Heq.
+  eapply Forall2_function_eq_cond with (P := fun _ => True) in Hall2g; eauto.
+  clear. by induction l1; constructor.
+Qed.
+
+Lemma Forall2_all2: forall {A B: Type} (R : A -> B -> bool) (l1 : seq.seq A) (l2 : seq.seq B),
+    Forall2 R l1 l2 -> all2 R l1 l2.
+Proof.
+  move => A B R l1.
+  - induction l1; move => l2 HForall2.
+    * by inversion HForall2.
+    * inversion HForall2; subst.
+      specialize (IHl1 l3 X).
+      apply/andP. split => //.
+Qed.
+
+Lemma all2_Forall2: forall {A B: Type} (R : A -> B -> bool) (l1 : seq.seq A) (l2 : seq.seq B),
+    all2 R l1 l2 -> Forall2 R l1 l2.
+Proof.
+  move => A B R l1.
+  induction l1; move => l2 Hall2.
+  * inversion Hall2. by destruct l2 => //; constructor.
+  * inversion Hall2. destruct l2 => //.
+    move/andP in H0. destruct H0.
+    specialize (IHl1 l2 H0).
+    apply Forall2_cons => //.
+Qed.
+  
+Lemma Forall2_nth_error: forall A B R (l1 : seq.seq A) (l2 : seq.seq B) n m k,
+    Forall2 R l1 l2 ->
+    List.nth_error l1 n = Some m ->
+    List.nth_error l2 n = Some k ->
+    R m k.
+Proof.
+  move => A B R l1 l2 n m k HForall2 Hnth1 Hnth2.
+  eapply TProp.Forall2_lookup in Hnth1; eauto.
+  destruct Hnth1 as [y [Hnth2' HR]].
+  rewrite Hnth2' in Hnth2; by injection Hnth2 as ->.
+Qed.
+
+Lemma Forall2_spec: forall A B (R : A -> B -> Type) (l1 : seq.seq A) (l2 : seq.seq B),
+    List.length l1 = List.length l2 -> 
+    (forall n m k,
+    List.nth_error l1 n = Some m -> 
+    List.nth_error l2 n = Some k ->
+    R m k) ->
+    Forall2 R l1 l2.
+Proof.
+  move => A B R l1.
+  induction l1; move => l2 Hlen Hlookup; destruct l2 => //; first by constructor.
+  constructor.
+  - by apply (Hlookup 0 a b).
+  - simpl in *.
+    apply IHl1; first by lias.
+    move => i x y Hl1 Hl2.
+    by eapply (Hlookup (S i)) => //.
+Qed.
+
+Lemma Forall2_List_Forall2 : forall A B (P : A -> B -> Prop) l1 l2,
+  Forall2 P l1 l2 ->
+  List.Forall2 P l1 l2.
+Proof.
+  move => A B P.
+  induction l1; destruct l2 => //; move => H; try by inversion H.
+  inversion H; constructor => //.
+  by apply IHl1.
+Qed.
+
+Lemma List_Forall2_Forall2 : forall A B (P : A -> B -> Prop) l1 l2,
+  List.Forall2 P l1 l2 ->
+  Forall2 P l1 l2.
+Proof.
+  move => A B P.
+  induction l1; destruct l2 => //; move => H; try (by constructor); try by (exfalso; inversion H).
+  apply List.Forall2_cons_iff in H as [??].
+  constructor => //.
+  by apply IHl1.
+Defined.
+
+Definition Forall2_app A B R (l1 l2 : list A) (l3 l4: list B) (F1 : Forall2 R l1 l3) (F2 : Forall2 R l2 l4) : Forall2 R (l1 ++ l2) (l3 ++ l4).
+Proof.
+  move: l2 l3 l4 F1 F2.
+  induction l1 => /=; move => l2 l3 l4 F1 F2; destruct l3 => //=; try by inversion F1.
+  - inversion F1; subst; clear F1. constructor => //. by apply IHl1.
 Defined.
 
 End TProp.

@@ -327,10 +327,21 @@ Inductive reduce : host_state -> store_record -> frame -> list administrative_in
         reduce hs s f0 [::AI_local n f es] hs' s' f0 [::AI_local n f' es']
   .
 
+Definition hs_cfg_tuple := (((host_state ** store_record) ** frame) ** list administrative_instruction).
+  
 Definition reduce_tuple hs_s_f_es hs'_s'_f'_es' : Type :=
   let '(hs, s, f, es) := hs_s_f_es in
   let '(hs', s', f', es') := hs'_s'_f'_es' in
   reduce hs s f es hs' s' f' es'.
-      
+
+Inductive reduce_trans : hs_cfg_tuple -> hs_cfg_tuple -> Type :=
+| rt_refl: forall cfg,
+    reduce_trans cfg cfg
+| rt_step: forall cfg1 cfg2 cfg3,
+    reduce_tuple cfg1 cfg2 ->
+    reduce_trans cfg2 cfg3 ->
+    reduce_trans cfg1 cfg3
+.
+
 End Host.
 

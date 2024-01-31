@@ -10,120 +10,6 @@ Notation "l !! n" := (List.nth_error l n) (at level 10).
 
 Section module_typing_det.
 
-Lemma list_eq {T: Type} (l1 l2: list T):
-  (forall i, List.nth_error l1 i = List.nth_error l2 i) -> l1 = l2.
-Proof.
-  move: l1 l2.
-  induction l1; destruct l2 => //=; move => H; try by specialize (H 0).
-  f_equal.
-  - specialize (H 0); by injection H.
-  - apply IHl1; move => i.
-    by specialize (H (S i)).
-Qed.
-
-Lemma Forall2_length {T1 T2: Type} (f: T1 -> T2 -> Prop) l1 l2:
-  List.Forall2 f l1 l2 ->
-  length l1 = length l2.
-Proof.
-  move: l1 l2.
-  induction l1; destruct l2 => //=; move => H; inversion H; subst; clear H.
-  f_equal; by apply IHl1.
-Qed.
-
-Lemma Forall_lookup {T: Type} (P: T -> Prop) l i x:
-  List.Forall P l ->
-  List.nth_error l i = Some x ->
-  P x.
-Proof.
-  move: l i x.
-  induction l; destruct i => //=; move => x Hall Hnth.
-  - injection Hnth as ->.
-    by inversion Hall.
-  - eapply IHl; eauto => //.
-    by inversion Hall.
-Qed.
-
-Lemma Forall_spec {T: Type} (P: T -> Prop) (l: list T):
-  (forall n x, List.nth_error l n = Some x -> P x) ->
-  Forall P l.
-Proof.
-  induction l; move => Hspec => //.
-  constructor.
-  - by eapply (Hspec 0 a).
-  - apply IHl.
-    move => n x Hnth.
-    by apply (Hspec (S n) x).
-Qed.
-
-Lemma Forall2_lookup {T1 T2: Type} (f: T1 -> T2 -> Prop) l1 l2 i x:
-  List.Forall2 f l1 l2 ->
-  List.nth_error l1 i = Some x ->
-  exists y, List.nth_error l2 i = Some y /\ f x y.
-Proof.
-  move: l1 l2 i x.
-  induction l1; destruct l2, i => //=; move => x Hall2 Hnth; try by inversion Hall2.
-  - injection Hnth as ->. eexists; split => //.
-    by inversion Hall2.
-  - apply IHl1 => //.
-    by inversion Hall2.
-Qed.
-
-Lemma Forall2_function_eq_cond {T1 T2: Type} (P: T1 -> Prop) (f g: T1 -> T2 -> Prop) l1 l2 l3:
-  List.Forall P l1 ->
-  List.Forall2 f l1 l2 ->
-  List.Forall2 g l1 l3 ->
-  (forall x y z, P x -> f x y -> g x z -> y = z) ->
-  l2 = l3.
-Proof.
-  move => Hall Hall2f Hall2g Heq.
-  apply list_eq.
-  move => i.
-  destruct (List.nth_error l1 i) eqn:Hnth.
-  { eapply Forall_lookup in Hall; eauto => //.
-    eapply Forall2_lookup in Hall2f as [y [Hnth1 Hf]]; eauto => //.
-    eapply Forall2_lookup in Hall2g as [z [Hnth2 Hg]]; eauto => //.
-    rewrite Hnth1 Hnth2; f_equal.
-    by eapply Heq; eauto.
-  }
-  { apply Forall2_length in Hall2f.
-    apply Forall2_length in Hall2g.
-    apply List.nth_error_None in Hnth.
-    specialize (List.nth_error_None l2 i) as [_ Hnone1].
-    rewrite Hnone1; last by lias.
-    symmetry. rewrite -> List.nth_error_None. by lias.
-  }
-Qed.
-
-Lemma Forall2_function_eq {T1 T2: Type} (f g: T1 -> T2 -> Prop) l1 l2 l3:
-  List.Forall2 f l1 l2 ->
-  List.Forall2 g l1 l3 ->
-  (forall x y z, f x y -> g x z -> y = z) ->
-  l2 = l3.
-Proof.
-  move => Hall2f Hall2g Heq.
-  eapply Forall2_function_eq_cond with (P := fun _ => True) in Hall2g; eauto.
-  clear. by induction l1; constructor.
-Qed.
-
-Lemma Forall2_all2: forall {A B: Type} (R : A -> B -> bool) (l1 : seq.seq A) (l2 : seq.seq B),
-    List.Forall2 R l1 l2 <-> all2 R l1 l2.
-Proof.
-  move => A B R l1.
-  split.
-  - move: l2.
-    induction l1; move => l2 HForall2.
-    * by inversion HForall2.
-    * inversion HForall2; subst.
-      specialize (IHl1 l' H3).
-      apply/andP. split => //.
-  - move: l2.
-    induction l1; move => l2 Hall2.
-    * inversion Hall2. by destruct l2 => //.
-    * inversion Hall2. destruct l2 => //.
-      move/andP in H0. destruct H0.
-      specialize (IHl1 l2 H0).
-      apply Forall2_cons => //.
-Qed.
 
 Lemma all2_and: forall A B (f g h : A -> B -> bool) l1 l2,
   (forall a b, f a b = (g a b) && (h a b)) -> 
@@ -138,40 +24,11 @@ Proof.
   rewrite Hand; by lias.
 Qed.
 
-Lemma Forall2_nth_error: forall A B R (l1 : seq.seq A) (l2 : seq.seq B) n m k,
-    List.Forall2 R l1 l2 ->
-    List.nth_error l1 n = Some m ->
-    List.nth_error l2 n = Some k ->
-    R m k.
-Proof.
-  move => A B R l1 l2 n m k HForall2 Hnth1 Hnth2.
-  eapply Forall2_lookup in Hnth1; eauto.
-  destruct Hnth1 as [y [Hnth2' HR]].
-  rewrite Hnth2' in Hnth2; by injection Hnth2 as ->.
-Qed.
-
-Lemma Forall2_spec: forall A B (R : A -> B -> Prop) (l1 : seq.seq A) (l2 : seq.seq B),
-    List.length l1 = List.length l2 -> 
-    (forall n m k,
-    List.nth_error l1 n = Some m -> 
-    List.nth_error l2 n = Some k ->
-    R m k) ->
-    List.Forall2 R l1 l2.
-Proof.
-  move => A B R l1.
-  induction l1; move => l2 Hlen Hlookup; destruct l2 => //; simpl in *.
-  constructor.
-  - by apply (Hlookup 0 a b).
-  - apply IHl1; first by lias.
-    move => i x y Hl1 Hl2.
-    by eapply (Hlookup (S i)) => //.
-Qed.
-
 Lemma nth_error_same_length_list:
   forall (A B : Type) (l1 : seq.seq A) (l2 : seq.seq B) (i : nat) (m : A),
      length l1 = length l2 ->
      nth_error l1 i = Some m -> 
-     exists n, nth_error l2 i = Some n.
+     { n | nth_error l2 i = Some n }.
 Proof.
   move => A B l1 l2 i m Hlen Hl1.
   apply nth_error_Some_length in Hl1.
@@ -352,7 +209,7 @@ Lemma gen_index_iota: forall n m,
   gen_index n m = iota n m.
 Proof.
   move => n m.
-  apply list_eq.
+  apply TProp.list_eq.
   move => i.
   destruct (Nat.ltb i m) eqn:Hlt; move/PeanoNat.Nat.ltb_spec0 in Hlt.
   - rewrite gen_index_lookup; last by lias.
@@ -376,7 +233,7 @@ Proof.
   destruct Hmt2 as [fts2 [gts2 [Hmft2 [Hmtt2 [Hmmt2 [Hmgt2 [Hmet2 [Hmdt2 [Hmst2 [Hmimt2 Hmext2]]]]]]]]]].
   
   clear - Hmimt1 Hmimt2.
-  eapply Forall2_function_eq; eauto.
+  eapply TProp.Forall2_function_eq; eauto.
   move => x y z Heq1 Heq2; simpl in *.
   unfold module_import_typing in *.
   destruct x => /=; simpl in *.
@@ -398,13 +255,13 @@ Proof.
   (* Function types *)
   assert (fts1 = fts2) as Heqfts.
   { clear - Hmft1 Hmft2.
-    eapply Forall2_function_eq; eauto.
+    eapply TProp.Forall2_function_eq; eauto.
     move => x y z Heq1 Heq2; simpl in *.
     unfold module_func_typing in *.
     simpl in *.
     destruct x, modfunc_type, y, z => /=; simpl in *.
-    destruct Heq1 as [_ [Heq1 _]].
-    destruct Heq2 as [_ [Heq2 _]].
+    destruct Heq1 as [[? Heq1] ?].
+    destruct Heq2 as [[? Heq2] ?].
     remove_bools_options.
     by rewrite - Heq1 Heq2.
   }
@@ -413,13 +270,13 @@ Proof.
   (* Global types *)
   assert (gts1 = gts2) as Heqgts.
   { clear - Hmgt1 Hmgt2.
-    eapply Forall2_function_eq; eauto.
+    eapply TProp.Forall2_function_eq; eauto.
     move => x y z Heq1 Heq2; simpl in *.
     unfold module_func_typing in *.
     simpl in *.
     destruct x, modglob_type, y, z => /=; simpl in *.
-    destruct Heq1 as [_ [Heq1 _]].
-    destruct Heq2 as [_ [Heq2 _]].
+    destruct Heq1 as [[_ Heq1] _].
+    destruct Heq2 as [[_ Heq2] _].
     inversion Heq1; inversion Heq2; by subst. 
   }
   subst.
@@ -427,7 +284,7 @@ Proof.
   f_equal.
 
   clear - Hmext1 Hmext2.
-  eapply Forall2_function_eq; eauto.
+  eapply TProp.Forall2_function_eq; eauto.
   move => x y z Heq1 Heq2; simpl in *.
   unfold module_export_typing in *.
   simpl in *.
@@ -489,7 +346,7 @@ Definition get_import_global_count (m: module) := length (pmap (fun x => match x
 
 Lemma ext_funcs_lookup_exist (modexps: list module_export_desc) n fn:
   (ext_funcs modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (MED_func fn).
+  { k | modexps !! k = Some (MED_func fn)}.
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextfunclookup; try by destruct n => //=.
@@ -509,7 +366,7 @@ Qed.
 
 Lemma ext_tabs_lookup_exist (modexps: list module_export_desc) n tn:
   (ext_tabs modexps) !! n = Some tn ->
-  exists k, modexps !! k = Some (MED_table tn).
+  { k | modexps !! k = Some (MED_table tn)}.
 Proof.
   move: n tn.
   induction modexps; move => n tn Hexttablookup; try by destruct n => //=.
@@ -529,7 +386,7 @@ Qed.
 
 Lemma ext_mems_lookup_exist (modexps: list module_export_desc) n mn:
   (ext_mems modexps) !! n = Some mn ->
-  exists k, modexps !! k = Some (MED_mem mn).
+  { k | modexps !! k = Some (MED_mem mn)}.
 Proof.
   move: n mn.
   induction modexps; move => n mn Hextmemlookup; try by destruct n => //=.
@@ -549,7 +406,7 @@ Qed.
 
 Lemma ext_globs_lookup_exist (modexps: list module_export_desc) n fn:
   (ext_globs modexps) !! n = Some fn ->
-  exists k, modexps !! k = Some (MED_global fn).
+  { k | modexps !! k = Some (MED_global fn)}.
 Proof.
   move: n fn.
   induction modexps; move => n tn Hextgloblookup; try by destruct n => //=.
@@ -569,7 +426,7 @@ Qed.
 
 Lemma ext_funcs_lookup_exist_inv (modexps: list module_export_desc) n idx:
   modexps !! n = Some (MED_func idx) ->
-  exists k, ((ext_funcs modexps) !! k = Some idx).
+  { k | ((ext_funcs modexps) !! k = Some idx) }.
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -583,7 +440,7 @@ Qed.
 
 Lemma ext_tabs_lookup_exist_inv (modexps: list module_export_desc) n idx:
   modexps !! n = Some (MED_table idx) ->
-  exists k, ((ext_tabs modexps) !! k = Some idx).
+  { k |((ext_tabs modexps) !! k = Some idx) }.
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -597,7 +454,7 @@ Qed.
 
 Lemma ext_mems_lookup_exist_inv (modexps: list module_export_desc) n idx:
   modexps !! n = Some (MED_mem idx) ->
-  exists k, ((ext_mems modexps) !! k = Some idx).
+  { k | ((ext_mems modexps) !! k = Some idx)}.
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -611,7 +468,7 @@ Qed.
 
 Lemma ext_globs_lookup_exist_inv (modexps: list module_export_desc) n idx:
   modexps !! n = Some (MED_global idx) ->
-  exists k, ((ext_globs modexps) !! k = Some idx).
+  { k | ((ext_globs modexps) !! k = Some idx)}.
 Proof.
   move : n idx.
   induction modexps; move => n idx H; try by destruct n => //=.
@@ -761,8 +618,8 @@ Qed.
 Lemma combine_snoc {T1 T2: Type}: forall (l1: list T1) (l2: list T2) lc x,
   lc ++ [::x] = combine l1 l2 ->
   length l1 = length l2 ->
-  exists l1' l2' a b,
-    (l1 = l1' ++ [::a] /\ l2 = l2' ++ [::b] /\ lc = combine l1' l2' /\ x = (a, b)).
+  { l1' & { l2' & { a & {b |
+    (l1 = l1' ++ [::a] /\ l2 = l2' ++ [::b] /\ lc = combine l1' l2' /\ x = (a, b))}}}}.
 Proof.
   induction l1 as [| a l1']; move => l2 lc x Hcomb Hlen; first by destruct lc.
   destruct l2 as [|b l2'], lc as [|p lc'] => //; simpl in *; try by rewrite combine_nil in Hcomb.
@@ -869,24 +726,23 @@ Proof.
   move : Himptype.
   move : t_imps fts gts.
   induction mod_imports; move => t_imps fts gts Himptype => //=.
-  - apply Forall2_length in Himptype.
+  - apply TProp.Forall2_length in Himptype.
     by destruct t_imps => //=.
-  - destruct t_imps; first by apply Forall2_length in Himptype.
+  - destruct t_imps; first by apply TProp.Forall2_length in Himptype.
     simpl in *.
     inversion Himptype; subst; clear Himptype.
-    unfold module_import_typing in H2.
-    destruct a, imp_desc => /=; simpl in H2; destruct e => //.
-    all:
-      try by (move/andP in H2;
-      destruct H2 as [Hlen Hnth];
-      move/eqP in Hnth; subst;
-      simpl;
-      apply IHmod_imports in H4 as [? [? [? ?]]] => //;
-      repeat split => //;
-      f_equal).
-    move/eqP in H2; subst.
+    unfold module_import_typing in H0.
+    destruct a, imp_desc => /=; simpl in H0; destruct e => //.
+    all: try by (
+        move/andP in H0;
+        destruct H0 as [Hlen Hnth];
+        remove_bools_options; subst;
+        simpl;
+        apply IHmod_imports in X as [? [? [? ?]]] => //;
+        repeat split => //; f_equal).
+    move/eqP in H0; subst.
     simpl.
-    apply IHmod_imports in H4 as [? [? [? ?]]] => //.
+    apply IHmod_imports in X as [? [? [? ?]]] => //.
     repeat split => //.
     by f_equal.
 Qed.
@@ -926,7 +782,7 @@ Qed.
 Lemma const_exprs_impl tc es t:
   const_exprs tc es ->
   be_typing tc es (Tf [::] [::t]) ->
-  exists e, es = [:: e] /\ const_expr tc e.
+  { e | es = [:: e] /\ const_expr tc e}.
 Proof.
   move => Hconst Hbet.
   eapply bet_const_exprs_len in Hbet => //.
@@ -946,10 +802,10 @@ Lemma const_no_reduce (hs hs': host_state) s f v s' f' e':
 Proof.
   move => Hred.
   dependent induction Hred; subst; try by repeat destruct vcs => //.
-  { inversion H; subst; clear H; try by repeat destruct vs => //.
-    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
+  { inversion r; subst; clear r; try by repeat destruct vs => //.
+    destruct lh as [vs ? | ? vs]; simpl in H; by do 2 destruct vs => //=.
   }
-  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in *; last by do 2 destruct vs => //=.
     destruct vs => //=; last first.
     { destruct vs, es, l => //=.
       by apply reduce_not_nil in Hred.
@@ -957,7 +813,7 @@ Proof.
     destruct es => //=; first by apply reduce_not_nil in Hred.
     destruct es, l => //=.
     simpl in *.
-    inversion H; subst; clear H.
+    inversion e; subst; clear e.
     by eapply IHHred.
   }
 Qed.
@@ -970,29 +826,28 @@ Lemma reduce_trans_const hs1 s1 f1 v1 hs2 s2 f2 v2:
 Proof.
   move => Hred.
   unfold reduce_trans in Hred.
-  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
   inversion Hred => //.
-  unfold reduce_tuple in H.
-  destruct y as [[[??]?]?].
-  by apply const_no_reduce in H.
+  unfold reduce_tuple in X.
+  destruct cfg2 as [[[??]?]?]; subst.
+  by apply const_no_reduce in X.
 Qed.
 
 Lemma reduce_get_global hs s f hs' s' f' i e:
   reduce hs s f [::AI_basic (BI_get_global i)] hs' s' f' e ->
-  exists v, sglob_val s (f_inst f) i = Some v /\ e = [::AI_basic (BI_const v)].
+  { v | sglob_val s (f_inst f) i = Some v /\ e = [::AI_basic (BI_const v)]}.
 Proof.
   move => Hred.
   dependent induction Hred; subst; try by repeat destruct vcs => //.
-  { inversion H; subst; clear H; try by repeat destruct vs => //.
-    destruct lh as [vs ? | ? vs]; simpl in H1; by do 2 destruct vs => //=.
+  { inversion r; subst; clear r; try by repeat destruct vs => //.
+    destruct lh as [vs ? | ? vs]; simpl in *; by do 2 destruct vs => //=.
   }
   { by exists v. }
-  { destruct lh as [vs ? | ? vs] => //=; simpl in H; last by do 2 destruct vs => //=.
+  { destruct lh as [vs ? | ? vs] => //=; simpl in *; last by do 2 destruct vs => //=.
     destruct vs => //=.
     destruct es => //=; first by apply reduce_not_nil in Hred.
     destruct es, l => //=.
     simpl in *.
-    inversion H; subst; clear H.
+    inversion e; subst; clear e.
     rewrite cats0.
     by eapply IHHred.
   }
@@ -1003,30 +858,28 @@ Lemma reduce_trans_get_global hs s f hs' s' f' i v:
   sglob_val s (f_inst f) i = Some v.
 Proof.
   move => Hred.
-  unfold reduce_trans, opsem.reduce_trans in *.
-  apply Operators_Properties.clos_rt_rt1n_iff in Hred.
+  unfold reduce_trans in *.
   inversion Hred; subst; clear Hred.
-  destruct y as [[[??]?]?].
-  unfold reduce_tuple, opsem.reduce_tuple in H.
-  apply reduce_get_global in H.
-  destruct H as [v' [Hsgv ->]].
-  inversion H0; subst; clear H0 => //.
-  unfold reduce_tuple, opsem.reduce_tuple in H.
-  destruct y as [[[??]?]?].
-  by apply const_no_reduce in H.
+  destruct cfg2 as [[[??]?]?].
+  unfold reduce_tuple, opsem.reduce_tuple in X.
+  apply reduce_get_global in X as [v' [Hsgv ->]].
+  inversion X0; subst; clear X0 => //.
+  unfold reduce_tuple, opsem.reduce_tuple in X.
+  destruct cfg2 as [[[??]?]?].
+  by apply const_no_reduce in X.
 Qed.
 
 Lemma modglobs_const: forall tc modglobs gt,
-  Forall2 (module_glob_typing tc) modglobs gt ->
-  Forall (fun g => exists e, g.(modglob_init) = [::e] /\ const_expr tc e) modglobs.
+  TProp.Forall2 (module_glob_typing tc) modglobs gt ->
+  TProp.Forall (fun g => { e | g.(modglob_init) = [::e] /\ const_expr tc e}) modglobs.
 Proof.
   move => tc modglobs. move: tc.
-  induction modglobs; move => tc gt Hall2; destruct gt => //=.
-  - by apply Forall2_length in Hall2.
+  induction modglobs; move => tc gt Hall2; destruct gt => //=; try by constructor.
+  - by apply TProp.Forall2_length in Hall2.
   - inversion Hall2 as [ | ???? Ha Hall2']; subst.
     constructor.
     + unfold module_glob_typing in Ha.
-      destruct a => /=; destruct Ha as [Hconst [-> Hbet]].
+      destruct a => /=; destruct Ha as [[Hconst ->] Hbet].
       by apply const_exprs_impl in Hbet; eauto.
     + by eapply IHmodglobs; eauto.
 Qed.
@@ -1047,12 +900,12 @@ Proof.
   unfold instantiate_globals, instantiation_spec.instantiate_globals in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [Hmgt _]]]]]].
-  assert (length gi1 = length gi2) as Hlen; first by (apply Forall2_length in Hgi1; apply Forall2_length in Hgi2; rewrite Hgi1 in Hgi2).
+  assert (length gi1 = length gi2) as Hlen; first by (apply TProp.Forall2_length in Hgi1; apply TProp.Forall2_length in Hgi2; rewrite Hgi1 in Hgi2).
 
   remember (Build_t_context _ _ _ _ _ _ _ _) as tc.
   apply modglobs_const in Hmgt.
 
-  eapply Forall2_function_eq_cond; eauto => //.
+  eapply TProp.Forall2_function_eq_cond; eauto => //.
   move => x y z Hconst Heq1 Heq2.
   simpl in *.
 
@@ -1085,14 +938,14 @@ Proof.
   unfold instantiate_elem, instantiation_spec.instantiate_elem in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [_ [Hmet _]]]]]]].
-  assert (length eo1 = length eo2) as Hlen; first by (apply Forall2_length in Heo1; apply Forall2_length in Heo2; rewrite Heo1 in Heo2).
+  assert (length eo1 = length eo2) as Hlen; first by (apply TProp.Forall2_length in Heo1; apply TProp.Forall2_length in Heo2; rewrite Heo1 in Heo2).
 
-  eapply Forall2_function_eq_cond; eauto => //.
+  eapply TProp.Forall2_function_eq_cond; eauto => //.
   move => x y z Hconst Heq1 Heq2.
   simpl in *.
 
   destruct x as [[et] eo ei]; simpl in *.
-  destruct Hconst as [Hconst [Hbet [Hilen Halllen]]].
+  destruct Hconst as [[[Hconst Hbet] Hilen] Halllen].
   apply const_exprs_impl in Hbet => //; clear Hconst.
   destruct Hbet as [e [-> Hconst]].
   unfold const_expr in Hconst; simpl in Hconst.
@@ -1120,14 +973,14 @@ Proof.
   unfold instantiate_data, instantiation_spec.instantiate_data in *.
   destruct m; simpl in *.
   destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [Hmdt _]]]]]]]].
-  assert (length do1 = length do2) as Hlen; first by (apply Forall2_length in Hdo1; apply Forall2_length in Hdo2; rewrite Hdo1 in Hdo2).
+  assert (length do1 = length do2) as Hlen; first by (apply TProp.Forall2_length in Hdo1; apply TProp.Forall2_length in Hdo2; rewrite Hdo1 in Hdo2).
 
-  eapply Forall2_function_eq_cond; eauto => //.
+  eapply TProp.Forall2_function_eq_cond; eauto => //.
   move => x y z Hconst Heq1 Heq2.
   simpl in *.
 
   destruct x as [[dm] d_o di]; simpl in *.
-  destruct Hconst as [Hconst [Hbet Hilen]].
+  destruct Hconst as [[Hconst Hbet] Hilen].
   apply const_exprs_impl in Hbet => //; clear Hconst.
   destruct Hbet as [e [-> Hconst]].
   unfold const_expr in Hconst; simpl in Hconst.
@@ -1145,25 +998,25 @@ Proof.
 Qed.
 
 Lemma vt_imps_comp_len hs s (v_imps: list v_ext) t_imps:
-  Forall2 (external_typing hs s) v_imps t_imps ->
+  TProp.Forall2 (external_typing hs s) v_imps t_imps ->
   (length (ext_funcs v_imps) = length (ext_t_funcs t_imps) /\
     length (ext_tabs v_imps) = length (ext_t_tabs t_imps) /\
     length (ext_mems v_imps) = length (ext_t_mems t_imps) /\
     length (ext_globs v_imps) = length (ext_t_globs t_imps)).
 Proof.
   move: t_imps.
-  induction v_imps; move => t_imps Hexttype; destruct t_imps; try by apply Forall2_length in Hexttype.
+  induction v_imps; move => t_imps Hexttype; destruct t_imps; (try by constructor); try by apply TProp.Forall2_length in Hexttype.
   inversion Hexttype; subst; clear Hexttype.
-  apply IHv_imps in H4.
-  destruct H4 as [Hft [Htt [Hmt Hgt]]].
-  destruct a; inversion H2; subst; clear H2 => //=; by repeat split; lias.
+  apply IHv_imps in X.
+  destruct X as [Hft [Htt [Hmt Hgt]]].
+  destruct a; inversion H0; subst; clear H0 => //=; by repeat split; lias.
 Qed.
 
 Local Definition external_typing := external_typing host_function.
 
 Lemma alloc_module_det hs1 hs2 s m v_imps t_imps t_exps g_inits g_inits' s_res1 s_res2 inst inst' exps exps':
   module_typing m t_imps t_exps ->
-  Forall2 (external_typing s) v_imps t_imps ->
+  TProp.Forall2 (external_typing s) v_imps t_imps ->
   length g_inits = length (mod_globals m) -> 
   length g_inits' = length (mod_globals m) -> 
   alloc_module s m v_imps g_inits (s_res1, inst, exps) ->
@@ -1343,7 +1196,7 @@ Proof.
       destruct m; simpl in *.
       destruct Hmt as [fts [gts [_ [_ [_ [_ [_ [_ [_ [Hit _]]]]]]]]]].
       apply ext_globs_lookup_exist in Heqgi as [k Hvi].
-      eapply Forall2_lookup in Hexttype; eauto.
+      eapply TProp.Forall2_lookup in Hexttype; eauto.
       destruct Hexttype as [y [Hnth Hexttype]].
       inversion Hexttype; subst; clear Hexttype.
       by move/ssrnat.ltP in H0.
@@ -1376,8 +1229,8 @@ Proof.
 
   (* Instance, alloc_module store, and exports *)
   eapply alloc_module_det in Hallocmodule1; eauto => //.
-  3: { by apply Forall2_length in Hinstglob1. }
-  2: { by apply Forall2_length in Hinstglob2. }
+  3: { by apply TProp.Forall2_length in Hinstglob1. }
+  2: { by apply TProp.Forall2_length in Hinstglob2. }
 
   destruct Hallocmodule1 as [Hieeq [Hgieq Hwseq]].
   inversion Hieeq; subst; clear Hieeq.

@@ -83,7 +83,7 @@ Qed.
 
 Lemma Binop_typing: forall C t op t1s t2s,
     be_typing C [::BI_binop t op] (Tf t1s t2s) ->
-    t1s = t2s ++ [::t] /\ exists ts, t2s = ts ++ [::t].
+    (t1s = t2s ++ [::t]) ** { ts | t2s = ts ++ [::t]}.
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.

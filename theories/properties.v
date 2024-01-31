@@ -8,8 +8,6 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-Notation " A ** B " := (prod A B)%type (at level 20, right associativity).
-
 (** * Basic Lemmas **)
 
 (** List operations **)
@@ -741,7 +739,7 @@ Qed.
 Lemma all2_element {T1 T2: Type} (l1: list T1) (l2: list T2) f n x:
   all2 f l1 l2 ->
   List.nth_error l1 n = Some x ->
-  exists y, List.nth_error l2 n = Some y.
+  {y | List.nth_error l2 n = Some y}.
 Proof.
   move => Hall2 Hnth.
   destruct (List.nth_error l2 n) eqn:Hnth'; first by eauto.

@@ -3,7 +3,7 @@
 (* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import list_extra datatypes datatypes_properties
+From Wasm Require Import common list_extra datatypes datatypes_properties
                          binary_format_parser operations
                          typing opsem type_checker memory memory_list.
 From Coq Require Import BinNat.
@@ -424,15 +424,15 @@ Definition module_typing (m : module) (impts : list extern_t) (expts : list exte
     tc_label := nil;
     tc_return := None;
   |} in
-  (List.Forall2 (module_func_typing c) fs fts) *
-  (seq.all module_tab_typing ts) *
-  (seq.all module_mem_typing ms) *
-  (List.Forall2 (module_glob_typing c') gs gts) *
-  (List.Forall (module_elem_typing c) els) *
-  (List.Forall (module_data_typing c) ds) *
-  (pred_option (module_start_typing c) i_opt) *
-  (List.Forall2 (fun imp => module_import_typing c imp.(imp_desc)) imps impts) *
-  (List.Forall2 (fun exp => module_export_typing c exp.(modexp_desc)) exps expts)}}.
+  ((TProp.Forall2 (module_func_typing c) fs fts) **
+  (seq.all module_tab_typing ts) **
+  (seq.all module_mem_typing ms) **
+  (TProp.Forall2 (module_glob_typing c') gs gts) **
+  (TProp.Forall (module_elem_typing c) els) **
+  (TProp.Forall (module_data_typing c) ds) **
+  (pred_option (module_start_typing c) i_opt) **
+  (TProp.Forall2 (fun imp => module_import_typing c imp.(imp_desc)) imps impts) **
+  (TProp.Forall2 (fun exp => module_export_typing c exp.(modexp_desc)) exps expts))}}.
 
 Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
 | ETY_func :
@@ -460,21 +460,21 @@ Inductive external_typing : store_record -> v_ext -> extern_t -> Prop :=
   typing.global_agree g gt ->
   external_typing s (MED_global (Mk_globalidx i)) (ET_glob gt).
 
-Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_inits : Prop :=
-  List.Forall2 (fun g v =>
+Definition instantiate_globals inst (hs' : host_state) (s' : store_record) m g_inits : Type :=
+  TProp.Forall2 (fun g v =>
       opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list g.(modglob_init))
                          (hs', s', (Build_frame nil inst), [::AI_basic (BI_const v)]))
     m.(mod_globals) g_inits.
 
-Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Prop :=
-  List.Forall2 (fun e c =>
+Definition instantiate_elem inst (hs' : host_state) (s' : store_record) m e_offs : Type :=
+  TProp.Forall2 (fun e c =>
       opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list e.(modelem_offset))
                          (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_elem)
     e_offs.
 
-Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Prop :=
-  List.Forall2 (fun d c =>
+Definition instantiate_data inst (hs' : host_state) (s' : store_record) m d_offs : Type :=
+  TProp.Forall2 (fun d c =>
       opsem.reduce_trans (hs', s', (Build_frame nil inst), operations.to_e_list d.(moddata_offset))
                          (hs', s', (Build_frame nil inst), [::AI_basic (BI_const (VAL_int32 c))]))
     m.(mod_data)
@@ -528,21 +528,21 @@ Definition check_start m inst start : bool :=
   start' == start.
 
 Definition instantiate (s : store_record) (m : module) (v_imps : list v_ext)
-                       (z : (store_record * instance * list module_export) * option nat) : Prop :=
+                       (z : (store_record * instance * list module_export) * option nat) : Type :=
   let '((s_end, inst, v_exps), start) := z in
-  exists t_imps t_exps hs' s' g_inits e_offs d_offs,
-    module_typing m t_imps t_exps /\
-    List.Forall2 (external_typing s) v_imps t_imps /\
-    alloc_module s m v_imps g_inits (s', inst, v_exps) /\
-    instantiate_globals inst hs' s' m g_inits /\
-    instantiate_elem inst hs' s' m e_offs /\
-    instantiate_data inst hs' s' m d_offs /\
-    check_bounds_elem inst s' m e_offs /\
-    check_bounds_data inst s' m d_offs /\
-    check_start m inst start /\
+  { t_imps & { t_exps & { hs' & { s' & { g_inits & { e_offs & { d_offs &
+    (module_typing m t_imps t_exps **
+    TProp.Forall2 (external_typing s) v_imps t_imps **
+    alloc_module s m v_imps g_inits (s', inst, v_exps) **
+    instantiate_globals inst hs' s' m g_inits **
+    instantiate_elem inst hs' s' m e_offs **
+    instantiate_data inst hs' s' m d_offs **
+    check_bounds_elem inst s' m e_offs **
+    check_bounds_data inst s' m d_offs **
+    check_start m inst start **
     let s'' := init_tabs s' inst (map (fun o => BinInt.Z.to_nat o.(Wasm_int.Int32.intval)) e_offs) m.(mod_elem) in
     (s_end : store_record)
-      == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data).
+      == init_mems s'' inst (map (fun o => BinInt.Z.to_N o.(Wasm_int.Int32.intval)) d_offs) m.(mod_data))}}}}}}}.
 
 Definition interp_alloc_module (s : store_record) (m : module) (imps : list v_ext) (gvs : list value) : (store_record * instance * list module_export) :=
   let i_fs := List.map (fun i => Mk_funcidx i) (seq.iota (List.length s.(s_funcs)) (List.length m.(mod_funcs))) in
