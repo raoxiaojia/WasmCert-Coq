@@ -1,7 +1,7 @@
 From Wasm Require Import common properties tactic typing_inversion.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
-From Wasm Require Export operations host type_preservation type_progress.
+From Wasm Require Export operations host type_preservation type_progress type_checker type_checker_reflects_typing.
 Require Import BinNat.
 
 Set Implicit Arguments.
@@ -77,11 +77,6 @@ Proof.
   - by eapply RSP_terminal; eauto.
 Defined.
 
-Print run_one_step_ppi.
-
-Definition make_ppi_cfg s f es ts (Htype: config_typing s f es ts) : res_ppi :=
-  RSP_cfg tt Htype.
-
 (* This obviously terminate, but the only purpose of it is using the efficient N for extraction (instead of inserting extra proofs), so let's omit the proof *)
 Unset Guard Checking.
 
@@ -97,5 +92,24 @@ Fixpoint run_multi_step_ppi (fuel: N) (cfg: res_ppi) {struct fuel}: res_ppi :=
   end.
 
 Set Guard Checking.
+
+Definition make_ppi_cfg hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
+  RSP_cfg hs Htype.
+
+Definition run_multi_step (fuel: N) hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
+  run_multi_step_ppi fuel (@make_ppi_cfg hs s f es ts Htype).
+
+Print typing.config_typing.
+
+Print s_typing.
+
+Print frame_typing.
+
+Print inst_typing.
+
+Definition run_multi_step' (fuel: N) (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
+Proof.
+  remember (b_e_type_checker 
+Admitted.
 
 End Interpreter_PPI_extract.

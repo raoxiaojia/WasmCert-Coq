@@ -1,13 +1,13 @@
 (** Executable instantiation **)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import opsem interpreter_ctx instantiation_spec.
+From Wasm Require Import opsem interpreter_ppi instantiation_spec.
 From Coq Require Import BinNat.
 
 Section Instantiation_func.
 
-Import interpreter_func.EmptyHost.
-Import Interpreter_ctx_extract.
+Import EmptyHost.
+Import Interpreter_PPI_extract.
 
 Let alloc_funcs := alloc_funcs host_function_eqType.
 Let alloc_tabs := alloc_tabs host_function_eqType.
@@ -213,7 +213,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   end.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
-  match run_multi_step_raw 5 s (Build_frame [::] inst) (operations.to_e_list b_es) 1 with
+  match @run_multi_step 5 s (Build_frame [::] inst) (operations.to_e_list b_es) with
   | inr vs =>
     match vs with
     | [:: v] => Some v
