@@ -373,34 +373,34 @@ Qed.
 Definition cl_type_check_single (s:store_record) (cl :function_closure): Type :=
   cl_typing s cl (cl_type cl).
 
-Definition tabcl_agree (s : store_record) (tcl_index : option nat) : Prop :=
+Definition tabcl_agree (s : store_record) (tcl_index : option nat) : bool :=
   match tcl_index with
-  | None => True
+  | None => true
   | Some n => n < size s.(s_funcs)
   end.
 
-Definition tabsize_agree (t: tableinst) : Prop :=
+Definition tabsize_agree (t: tableinst) : bool :=
   match table_max_opt t with
-  | None => True
+  | None => true
   | Some n => tab_size t <= n
   end.
 
-Definition tab_agree (s: store_record) (t: tableinst): Prop :=
-  List.Forall (tabcl_agree s) (t.(table_data)) /\
+Definition tab_agree (s: store_record) (t: tableinst): bool :=
+  all (tabcl_agree s) (t.(table_data)) &&
   tabsize_agree t.
 
-Definition mem_agree (m : memory) : Prop :=
+Definition mem_agree (m : memory) : bool :=
   match (mem_max_opt m) with
-  | None => True
-  | Some n => N.le (mem_size m) n
+  | None => true
+  | Some n => N.leb (mem_size m) n
   end.
 
 Definition store_typing (s : store_record) : Type :=
   match s with
   | Build_store_record fs tclss mss gs =>
-    common.TProp.Forall (cl_type_check_single s) fs *
-    (List.Forall (tab_agree s) tclss /\
-    List.Forall mem_agree mss)
+    (common.TProp.Forall (cl_type_check_single s) fs **
+    all (tab_agree s) tclss) **
+    all mem_agree mss
   end.
 
 Inductive config_typing : store_record -> frame -> seq administrative_instruction -> seq value_type -> Type :=

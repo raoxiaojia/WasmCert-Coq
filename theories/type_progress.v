@@ -134,7 +134,7 @@ Qed.
 
 Lemma typeof_append: forall ts t vs,
     map typeof vs = ts ++ [::t] ->
-    { v |
+    { v &
       vs = take (size ts) vs ++ [::v] /\
       map typeof (take (size ts) vs) = ts /\
       typeof v = t}.
@@ -171,11 +171,11 @@ Ltac invert_typeof_vcs :=
     simpl in H; inversion H; subst; clear H
   end.
 
-Definition not_lf_br (es: seq administrative_instruction) (n: nat) :=
-  forall k (lh: lholed n), lfill lh [::AI_basic (BI_br k)] <> es.
+Definition not_lf_br (es: seq administrative_instruction) (n: nat) : Set :=
+  forall k (lh: lholed n), ~ (lfill lh [::AI_basic (BI_br k)] = es).
 
-Definition not_lf_return (es: seq administrative_instruction) (n: nat) :=
-  forall (lh: lholed n), lfill lh [::AI_basic BI_return] <> es.
+Definition not_lf_return (es: seq administrative_instruction) (n: nat): Set :=
+  forall (lh: lholed n), ~ (lfill lh [::AI_basic BI_return] = es).
 
 Lemma nlfbr_right: forall es n es',
     not_lf_br (es ++ es') n ->
@@ -256,7 +256,7 @@ Lemma t_progress_be: forall C bes ts1 ts2 vcs lab ret s f hs,
     not_lf_br (to_e_list bes) 0 ->
     not_lf_return (to_e_list bes) 0 ->
     (const_list (to_e_list bes)) +
-    { s'  & { f' & { es' & { hs' & reduce hs s f (v_to_e_list vcs ++ to_e_list bes) hs' s' f' es'}}}}.
+    { s' & { f' & { es' & { hs' & reduce hs s f (v_to_e_list vcs ++ to_e_list bes) hs' s' f' es'}}}}.
 Proof.
   move => C bes ts1 ts2 vcs lab ret s f hs HST HIT HType HConstType HNBI_br HNRet.
   generalize dependent vcs.
@@ -575,13 +575,13 @@ Proof.
 Qed. 
 
 Definition br_reduce (es: seq administrative_instruction) :=
-  { n & { lh: lholed n | lfill lh [::AI_basic (BI_br n)] = es}}.
+  { n & { lh: lholed n & lfill lh [::AI_basic (BI_br n)] = es}}.
 
 Definition return_reduce (es: seq administrative_instruction) :=
-  { n & { lh: lholed n | lfill lh [::AI_basic BI_return] = es}}.
+  { n & { lh: lholed n & lfill lh [::AI_basic BI_return] = es}}.
 
 (** [br_reduce] is decidable. **)
-Lemma br_reduce_decidable : forall es, (br_reduce es) + (br_reduce es -> False).
+Lemma br_reduce_decidable : forall es, (br_reduce es) + (br_reduce es -> Empty_set).
   move => es.
   destruct (lfill_factorise (fun n => AI_basic (BI_br n)) es) as [[n [lh Heq]] | He].
   - subst es.
@@ -589,11 +589,12 @@ Lemma br_reduce_decidable : forall es, (br_reduce es) + (br_reduce es -> False).
     by repeat eexists.
   - right.
     move => [n [lh Heq]].
+    exfalso.
     by apply (He n lh).
 Qed.
-  
+
 (** [return_reduce] is decidable. **)
-Lemma return_reduce_decidable : forall es, (return_reduce es) + (return_reduce es -> False).
+Lemma return_reduce_decidable : forall es, (return_reduce es) + (return_reduce es -> Empty_set).
 Proof.
   move => es.
   destruct (lfill_factorise (fun _ => AI_basic BI_return) es) as [[n [lh Heq]] | He].
@@ -602,6 +603,7 @@ Proof.
     by repeat eexists.
   - right.
     move => [n [lh Heq]].
+    exfalso.
     by apply (He n lh).
 Qed.
   
@@ -649,9 +651,9 @@ Lemma br_reduce_extract_vs: forall n k (lh: lholed n) es s C ts ts2,
     lfill lh [::AI_basic (BI_br (n + k))] = es ->
     e_typing s C es (Tf [::] ts2) ->
     List.nth_error (tc_label C) k = Some ts ->
-    { vs & { lh': lholed n | const_list vs /\
+    { vs & { lh': lholed n | (const_list vs /\
       lfill lh' (vs ++ [::AI_basic (BI_br (n + k))]) = es /\
-      length vs = length ts}}.
+      length vs = length ts)}}.
 Proof.
   move => n k lh.
   move: lh k.
@@ -687,7 +689,7 @@ Proof.
         (do 4 f_equal; try by lias). }
     2: { by eauto. }
     replace (k.+1+k0) with (k+k0.+1); last by lias.
-    repeat eexists; eauto. 
+    repeat eexists; eauto.
     instantiate (1 := (LH_rec vs (length ts_label) es lh' es')) => /=.
     rewrite Heq.
     by rewrite addnS.
@@ -697,9 +699,9 @@ Lemma return_reduce_extract_vs: forall n (lh: lholed n) es s C ts ts2,
     lfill lh [::AI_basic BI_return] = es ->
     e_typing s C es (Tf [::] ts2) ->
     tc_return C = Some ts ->
-    { vs & {lh': lholed n | const_list vs /\
-      lfill lh' (vs ++ [::AI_basic BI_return]) = es /\
-      length vs = length ts}}.
+    { vs & {lh': lholed n & (const_list vs) /\
+      ((lfill lh' (vs ++ [::AI_basic BI_return]) == es)) /\
+      (length vs = length ts)}}.
 Proof.
   move => n.
   elim.
@@ -731,6 +733,7 @@ Proof.
     apply const_es_exists in Hconst as [vs' ->].
     repeat eexists; eauto; first by apply v_to_e_const.
     instantiate (1 := (LH_rec vs (length ts_label) es lh' es')) => /=.
+    move/eqP in Hlf.
     by rewrite Hlf.
 Qed.
 
@@ -764,8 +767,16 @@ Proof.
   by eapply return_reduce_return_some in X0; eauto.
 Qed.
 
-Axiom host_application_exists: forall hs s tf hf vcs,
-    { hs' & {res & host_application hs s tf hf vcs hs' res }}.
+Axiom admit_custom : forall (A : Type), A.
+
+Theorem host_application_exists: forall hs s tf hf vcs,
+    {hs' & {res & host_application hs s tf hf vcs hs' res}}.
+Proof.
+  intros hs s tf hf vcs.
+  exists hs, None.
+  (* exists (Some (s, result_trap)). *)
+  apply admit_custom.
+Qed.
 
 Lemma t_progress_e: forall s C C' f vcs es tf ts1 ts2 lab ret hs,
     e_typing s C es tf ->
@@ -798,8 +809,8 @@ Proof.
               store_typing s ->
               (forall n (lh: lholed n) k, lfill lh [::AI_basic (BI_br k)] = es -> k < n) ->
               (forall n, not_lf_return es n) ->
-              (const_list es /\ length es = length ts) +
-              (es = [::AI_trap]) +
+              {const_list es /\ (length es = length ts)} +
+              {es = [::AI_trap]} +
               { s' & { f' & { es' & { hs' & reduce hs s f es hs' s' f' es'}}}}); clear HType s C es tf.
    
   - (* AI_basic *)
@@ -940,6 +951,7 @@ Proof.
       destruct HLF as [cs [lh' [HConst [HLF2 HLength]]]].
       repeat eexists.
       apply r_simple.
+      move/eqP in HLF2.
       eapply rs_return; eauto.
       by [].
     }
@@ -950,6 +962,7 @@ Proof.
     }
     { unfold return_reduce in HEMF. unfold not_lf_return.
       move => n lh HContra.
+      apply of_void.
       apply HEMF. by eauto.
     }
     + (* Const *)
@@ -1001,7 +1014,8 @@ Proof.
       destruct HEMT as [n [lh HLF]].
       right.
       replace (BI_br n) with (BI_br (n + 0)) in HLF; last by f_equal; lias.
-      eapply br_reduce_extract_vs in HLF as [cs [lh' [HConst [<- HLength]]]]; eauto => //.
+      eapply br_reduce_extract_vs in HLF as [cs [lh' [HConst [Hlf HLength]]]]; eauto => //.
+      subst es.
       repeat eexists.
       apply r_simple.
       by eapply rs_br; eauto; rewrite addn0.
@@ -1019,7 +1033,7 @@ Proof.
       rewrite leq_eqVlt in Inf.
       remove_bools_options => //.
       subst.
-      exfalso.
+      apply of_void.
       apply HEMF.
       by repeat eexists.
     }

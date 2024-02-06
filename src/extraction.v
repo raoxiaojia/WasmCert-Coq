@@ -7,8 +7,7 @@ From Wasm Require Import
   datatypes_properties
   binary_format_parser
   instantiation_func
-  interpreter_func
-  interpreter_ctx
+  interpreter_ppi
   type_checker
   pp.
 
@@ -21,8 +20,7 @@ Extraction Language OCaml.
 Extraction "extract"
   run_parse_module
   Instantiation_func_extract
-  Interpreter_func_extract
-  Interpreter_ctx_extract
+  Interpreter_PPI_extract
   value_rec_safe
   PP
   DummyHost

@@ -46,13 +46,6 @@ Ltac b_to_a_revert :=
            apply b_e_elim in H; destruct H
          end.
 
-Lemma b_e_elim: forall bes es,
-    to_e_list bes = es ->
-    bes = to_b_list es /\ es_is_basic es.
-Proof.
-  by apply properties.b_e_elim.
-Qed.
-
 Lemma app_binop_type_preserve: forall op v1 v2 v,
     app_binop op v1 v2 = Some v ->
     typeof v = typeof v1.
@@ -1276,19 +1269,15 @@ Proof.
   unfold store_typing.
   destruct s => //=.
   destruct s' => //=.
-  destruct HST as [Hcl [Htab Hmem]].
-  rewrite -> List.Forall_forall in Htab.
-  split => //; remove_bools_options; simpl in *; subst.
+  destruct HST as [[Hcl Htab] Hmem].
+  rewrite -> list_all_forall in Htab.
+  repeat split => //; remove_bools_options; simpl in *; subst => //.
   - apply TProp.forall_Forall_t. move => k x Hnth.
     eapply TProp.Forall_forall_t in Hcl; eauto.
     by eapply store_extension_cl_typing; eauto.
-  - split => //.
-    rewrite -> List.Forall_forall. move => x HIN.
+  - rewrite -> list_all_forall. move => x HIN.
     apply Htab in HIN. unfold tab_agree in HIN.
-    destruct HIN as [Htabcl Htabsize].
-    rewrite -> List.Forall_forall in Htabcl.
-    unfold tab_agree.
-    by rewrite -> List.Forall_forall.
+    by unfold tab_agree.
 Qed.
 
 Lemma store_memory_extension_store_typed: forall s s',
@@ -1305,24 +1294,19 @@ Proof.
   unfold store_typing.
   destruct s => //=.
   destruct s' => //=.
-  destruct HST as [Hcl [Htab Hmem]].
-  rewrite -> List.Forall_forall in Htab.
-  split => //; remove_bools_options; simpl in *; subst.
+  destruct HST as [[Hcl Htab] Hmem].
+  repeat split => //; remove_bools_options; simpl in *; subst => //.
   - apply TProp.forall_Forall_t. move => k x Hnth.
     eapply TProp.Forall_forall_t in Hcl; eauto.
     by eapply store_extension_cl_typing; eauto.
-  - split => //.
-    rewrite -> List.Forall_forall. move => x HIN.
-    apply Htab in HIN. unfold tab_agree in HIN.
-    destruct HIN as [Htabcl Htabsize].
-    rewrite -> List.Forall_forall in Htabcl.
-    unfold tab_agree.
-    by rewrite -> List.Forall_forall.
+  - rewrite -> list_all_forall. move => x HIN.
+    rewrite List.Forall_forall in HMem.
+    by eapply HMem; eauto.
 Qed.
 
 Lemma nth_error_map: forall {X Y:Type} l n (f: X -> Y) fv,
     List.nth_error (map f l) n = Some fv ->
-    { v |
+    { v &
       (List.nth_error l n = Some v) /\
       (f v = fv) }.
 Proof.
@@ -1405,8 +1389,8 @@ Proof.
   move => s n m HST HN.
   unfold store_typing in HST.
   destruct s => //=.
-  destruct HST as [_ [_ H]].
-  rewrite -> List.Forall_forall in H.
+  destruct HST as [[_ _] H].
+  rewrite -> list_all_forall in H.
   simpl in HN.
   apply H. by eapply List.nth_error_In; eauto.
 Qed.
@@ -1449,6 +1433,8 @@ Proof.
     repeat rewrite - length_is_size. rewrite List.repeat_length.
     rewrite - N.div_add in H1 => //.
     apply N.leb_le in H1.
+    apply N.leb_le in H.
+    apply N.leb_le.
     by lias.
   - by inversion HGrow.
 Qed.
@@ -1558,11 +1544,11 @@ Proof.
     remember HST as HST2. clear HeqHST2.
     unfold store_typing in HST.
     destruct s => //=.
-    destruct HST as [Hcl [Htab Hmem]].
+    destruct HST as [[Hcl Htab] Hmem].
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite e0. }
     
-    apply Forall_set => //=.
+    apply Forall_set; first by apply all_Forall => //=.
     eapply store_mem_agree; eauto.
     * by destruct t.
     * by move/ltP in H.
@@ -1581,13 +1567,13 @@ Proof.
     remember HST as HST2. clear HeqHST2.
     unfold store_typing in HST.
     destruct s => //=.
-    destruct HST as [? [? ?]].
+    destruct HST as [[? ?] ?].
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite e0. }
-    apply Forall_set => //=.
+    apply Forall_set; first by apply all_Forall => //=.
     eapply store_mem_agree; eauto.
     * by destruct tp => //=.
-    * by move/ltP in H1.
+    * by move/ltP in H.
   - (* again update memory : grow_memory *)
     apply et_to_bet in HType => //.
     replace [::BI_const (VAL_int32 c); BI_grow_memory] with ([::BI_const (VAL_int32 c)] ++ [::BI_grow_memory]) in HType => //.
@@ -1601,11 +1587,11 @@ Proof.
     remember HST as HST2. clear HeqHST2.
     unfold store_typing in HST.
     destruct s => //=.
-    destruct HST as [_ [_ ?]].
+    destruct HST as [[_ _] ?].
     assert (i < length s_mems0)%coq_nat.
     { apply List.nth_error_Some. by rewrite e0. }
-    apply Forall_set => //=.
-    eapply mem_grow_mem_agree; eauto. by move/ltP in H0.
+    apply Forall_set; first by apply all_Forall => //=.
+    eapply mem_grow_mem_agree; eauto. by move/ltP in H.
   - (* r_label *)
     eapply lfilled_es_type_exists in HType; eauto.
     destruct HType as [lab' [tf HType]].
@@ -1662,11 +1648,11 @@ Proof.
     invert_be_typing.
     replace (tc_local C) with ([::]: list value_type) in *; last by symmetry; eapply inst_t_context_local_empty; eauto.
     rewrite -> cats0 in *.
-    rewrite H1.
+    rewrite e0.
     rewrite set_nth_map => //.
     by rewrite set_nth_same_unchanged.
-  - assert (exists lab' t1s' t2s', e_typing s (upd_label (upd_label (upd_local_return C (map typeof f.(f_locs) ++ tc_local C) ret) lab) lab') es (Tf t1s' t2s')); first eapply lfilled_es_type_exists; eauto.
-    destruct H1 as [lab' [t1s' [t2s' Het]]].
+  - assert ({ lab' & { tf & e_typing s (upd_label (upd_label (upd_local_return C (map typeof f.(f_locs) ++ tc_local C) ret) lab) lab') es tf}}) as Hetype; first eapply lfilled_es_type_exists; eauto.
+    destruct Hetype as [lab' [[??] Het]].
     rewrite upd_label_overwrite in Het.
     by eapply IHHReduce; eauto.
 Qed.
@@ -1777,7 +1763,7 @@ Proof.
     eapply mk_frame_typing; eauto.
     apply ety_a'; auto_basic => //=.
     apply bet_block. simpl.
-    rewrite H8.
+    rewrite e8.
     rewrite map_cat => //=.
     rewrite n_zeros_typing.
     assert (HC2Empty: tc_local C2 = [::]); first by eapply inst_t_context_local_empty; eauto.

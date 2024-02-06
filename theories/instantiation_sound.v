@@ -158,22 +158,13 @@ Lemma tab_agree_aux s_funcs s_tables s_mems s_globals tab funcs tabs mems globs:
                s_globals := s_globals ++ globs |} tab .
 Proof.
   rewrite /tab_agree /typing.tab_agree.
-  move => Htb.
-  destruct Htb as [Htable Hs_tables]; subst.
-  constructor.
-  - (* forall tabcl_agree (table_data tab) *)
-    induction (table_data tab) as [| hd tl IH]; first by constructor.
-    (* forall tabcl_agree hd :: tl *)
-    inversion Htable as [| x y Hhd Htl]; subst.
-    constructor.
-    (* tabcl_agree hd *)
-    destruct hd => //=. 
-    rewrite /tabcl_agree in Hhd. simpl in Hhd.
-    rewrite size_cat. by rewrite ssrnat.ltn_addr.
-    (* forall tabcl_agree tl *)
-    apply IH. exact Htl.
-  - (* tabsize_agree table *)
-    assumption.
+  move => /andP [Htable Hs_tables]; subst.
+  rewrite Hs_tables Bool.andb_true_r.
+  rewrite list_all_forall.
+  rewrite list_all_forall in Htable.
+  move => oa Hin; specialize (Htable oa Hin).
+  unfold tabcl_agree in *; simpl in *; rewrite size_cat.
+  destruct oa => //; by lias.
 Qed.
 
 
@@ -233,10 +224,11 @@ Proof.
 
   move/andP in HTabType. destruct HTabType as [Hmax Hmin].
 
-  rewrite /typing.tab_agree. simpl.
+  rewrite /typing.tab_agree.
+  apply/andP => /=.
   split.
   * (* tabcl_agree *)
-    apply Forall_forall => lim Hin.
+    rewrite list_all_forall => lim Hin.
     apply repeat_spec in Hin.
     rewrite /tabcl_agree.
     by rewrite Hin.
@@ -292,10 +284,10 @@ Proof.
   rewrite /page_size.
   destruct lim_min as [ | min].
   + rewrite N.div_0_l => //.
-    by apply N.le_0_l.
+    by lias.
   + remove_bools_options.
     clear - H0.
-    replace (N.pos _ / (64 * 1024))%N with (N.pos min); first by apply/N.leb_spec0.
+    replace (N.pos _ / (64 * 1024))%N with (N.pos min); first by lias.
     replace (N.pos _ / (64 * 1024))%N with (N.pos ((64 * 1024) * min) / (64*1024))%N => //.
     rewrite Pos.mul_comm => /=.
     replace (N.pos (min * 65536)) with (N.pos min * 65536)%N => //.
@@ -688,7 +680,7 @@ Proof.
   move/eqP in H4; subst.
   move/eqP in Halloc; subst.
   
-  destruct s_end. destruct s. simpl in *. destruct Hstore_typing as [Hcl [Htab_agree Hmem_agree]].
+  destruct s_end. destruct s. simpl in *. destruct Hstore_typing as [[Hcl Htab_agree] Hmem_agree].
   specialize (alloc_func_gen_index _ _ _ _ _ _ (Logic.eq_sym Heqs_ifs)) as Hfuncidx.
   destruct Hfuncidx as [Hfunidx [Hfunc1 [Htab1 [Hmem1 Hglob1]]]]; simpl in *.
   specialize (alloc_tab_gen_index _ _ _ _ _ (Logic.eq_sym Heqs_its)) as Htabidx.
@@ -1149,20 +1141,21 @@ Proof.
       by inversion Heqtf.
       
   - (* tab_agree *)
-    rewrite Forall_app.
+    rewrite - all_Forall Forall_app.
     split.
     + (* forall tab_agree s' s_tables0 *)
       apply Forall_forall => ti Hin.
       subst s_new.
-      rewrite -> Forall_forall in Htab_agree.
       apply tab_agree_aux.
+      rewrite list_all_forall in Htab_agree.
       by apply Htab_agree.
     + (* forall tab_agree s' s_tabs_new *)
       by eapply tab_agree_from_typing; eauto.
   - (* mem_agree *)
-    rewrite Forall_app.
+    rewrite -all_Forall Forall_app.
     split.
     + (* forall mem_agree s_mems0 *)
+      rewrite all_Forall.
       by exact Hmem_agree.
     + (* forall mem_agree s_mems_new *)
       by eapply mem_agree_from_typing; eauto.
@@ -1382,7 +1375,7 @@ Proof.
 
   rewrite /store_typing /typing.store_typing in Htyping.
   destruct s. simpl in *.
-  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  destruct Htyping as [[Hcl_type Htab_agree] Hmem_agree].
   assert (Hle: taddr < length s_tables). { apply nth_error_Some_length in Htinst; lias. }
   apply TProp.Forall2_all2.
   eapply Forall2_set_2; [ by apply TProp.all2_Forall2, all2_tab_extension_same | eauto | ].
@@ -1427,7 +1420,7 @@ Proof.
   
   unfold store_typing, typing.store_typing in *.
   destruct s, s'. simpl in *.
-  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  destruct Htyping as [[Hcl_type Htab_agree] Hmem_agree].
   repeat split; last by subst s_mems0.
   - unfold typing.cl_type_check_single in *.
     apply TProp.forall_Forall_t => n x Hnth.
@@ -1448,15 +1441,19 @@ Proof.
     assert (Hlt: t < length s_tables). { by apply nth_error_Some_length in Hoption0; lias. }
 
     inversion Heqs'; subst s_tables0; clear Heqs'.
-    apply TProp.Forall_List_Forall.
-    apply TProp.List_Forall_Forall in Htab_agree.
+    apply all_Forall, TProp.Forall_List_Forall.
+    apply all_Forall, TProp.List_Forall_Forall in Htab_agree.
     apply Forall_set => //=.
     eapply TProp.Forall_lookup in Htab_agree; last by apply Hoption0.
+    move/andP in Htab_agree.
     destruct Htab_agree as [Htabcl_agree Htabsize_agree].
-    apply TProp.List_Forall_Forall in Htabcl_agree.
-
+    rewrite list_all_forall in Htabcl_agree.
+    apply Forall_forall, TProp.List_Forall_Forall in Htabcl_agree.
+    apply/andP.
     split => /=.
     + unfold tabcl_agree in *; simpl in *.
+      rewrite list_all_forall.
+      apply Forall_forall.
       apply TProp.Forall_List_Forall, TProp.Concat; first by apply Forall_firstn.
       apply TProp.Concat; last by apply Forall_skipn.
 
@@ -1657,7 +1654,7 @@ Proof.
 
   rewrite /store_typing /typing.store_typing in Htyping.
   destruct s. simpl in *.
-  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  destruct Htyping as [[Hcl_type Htab_agree] Hmem_agree].
 
   assert (Hle: maddr < length s_mems).
   { by eapply nth_error_Some_length in Hinst; lias. }
@@ -1717,7 +1714,7 @@ Proof.
   
   unfold store_typing, typing.store_typing in *.
   destruct s, s'. simpl in *.
-  destruct Htyping as [Hcl_type [Htab_agree Hmem_agree]].
+  destruct Htyping as [[Hcl_type Htab_agree] Hmem_agree].
   repeat split.
   - unfold typing.cl_type_check_single in *.
     apply TProp.forall_Forall_t => k e Hnth.
@@ -1736,10 +1733,11 @@ Proof.
     inversion Heqs'; subst s_mems0; clear Heqs'.
 
     rewrite -> nth_error_nth with (x := maddr) => //.
-    apply TProp.Forall_List_Forall, Forall_set => //; [ by apply nth_error_Some_length in Hsmlookup; lias | by apply TProp.List_Forall_Forall | ].
+    apply all_Forall, TProp.Forall_List_Forall, Forall_set => //; [ by apply nth_error_Some_length in Hsmlookup; lias | by apply TProp.List_Forall_Forall, all_Forall | ].
     
     rewrite /mem_agree in Hmem_agree.
-    rewrite -> Forall_nth in Hmem_agree.
+    apply all_Forall in Hmem_agree.
+    rewrite Forall_nth in Hmem_agree.
     rewrite /mem_agree => /=.
     rewrite -> nth_error_nth with (x := mem) => //=.
     clear - Hbound Hmem_agree Hsmlookup.
@@ -1947,7 +1945,7 @@ Proof.
   move/eqP in H4; subst.
   move/eqP in Halloc; subst.
   
-  destruct s_end. destruct s. simpl in *. destruct Hstore_typing as [Hcl [Htab_agree Hmem_agree]].
+  destruct s_end. destruct s. simpl in *. destruct Hstore_typing as [[Hcl Htab_agree] Hmem_agree].
   specialize (alloc_func_gen_index _ _ _ _ _ _ (Logic.eq_sym Heqs_ifs)) as Hfuncidx.
   destruct Hfuncidx as [Hfunidx [Hfunc1 [Htab1 [Hmem1 Hglob1]]]]; simpl in *.
   specialize (alloc_tab_gen_index _ _ _ _ _ (Logic.eq_sym Heqs_its)) as Htabidx.

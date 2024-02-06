@@ -230,6 +230,20 @@ Proof.
     + by rewrite IH.
 Qed.
 
+Lemma all_Forall {A: Type} (P: A -> bool) l:
+  List.Forall P l <-> all P l.
+Proof.
+  elim l => //=.
+  move => x l' IH; cbn.
+  split; move => H.
+  - inversion H; subst; clear H.
+    apply/andP; split => //.
+    by apply IH.
+  - move/andP in H; destruct H.
+    econstructor; eauto.
+    by apply IH.
+Qed.
+
 Lemma fold_left_preserve {A B: Type} (P: A -> Prop) (f: A -> B -> A) (l: list B) (acc: A) :
   P acc ->
   (forall (x:A) (act: B), P x -> P (f x act)) ->
@@ -627,8 +641,6 @@ Ltac call_unfold v cont :=
       cont v
     | let v := unfold_root v in
       cont v ].
-
-Check es_is_basic.
 
 (** Perform basic simplifications of [es_is_basic]. **)
 Ltac basic_inversion :=

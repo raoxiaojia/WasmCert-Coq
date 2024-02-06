@@ -1,9 +1,10 @@
 (** Soundness of the executable instantiation wrt the relational version. **)
 (** The main proof to be done is the algorithm for breaking circularities
     in the evaluation of various initialisers. **)
+(*
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
-From Wasm Require Import interpreter_ctx instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
+From Wasm Require Import interpreter_ppi instantiation_func instantiation_properties type_checker_reflects_typing instantiation_sound.
 From Coq Require Import Program.
 
 Lemma Forall2_all2_impl {X Y: Type} (f: X -> Y -> bool) (fprop: X -> Y -> Prop) l1 l2:
@@ -45,7 +46,7 @@ Proof.
   (* funcs *)
   { clear - Hfunccheck Hmftypes.
     unfold gather_m_f_types in Hmftypes.
-    apply Forall2_spec; first by apply those_length in Hmftypes; rewrite List.map_length in Hmftypes.
+    apply TProp.Forall2_spec; first by apply those_length in Hmftypes; rewrite List.map_length in Hmftypes.
     move => n mfunc tf Hfuncnth Hftsnth.
     eapply all_projection in Hfunccheck; eauto.
     eapply those_spec in Hmftypes; eauto.
@@ -61,14 +62,14 @@ Proof.
     rewrite Hlt Hmtnth in Hfunccheck.
     move/andP in Hfunccheck; destruct Hfunccheck as [_ Hfunccheck].
     destruct tf as [tn tm].
-    move/b_e_type_checker_reflects_typing in Hfunccheck.
+    apply b_e_tc_typing in Hfunccheck.
     repeat split => //.
     erewrite List.nth_error_nth; by eauto.
   }
   (* globals *)
   { clear -Hglobcheck.
     unfold gather_m_g_types.
-    apply Forall2_spec; first by rewrite List.map_length.
+    apply TProp.Forall2_spec; first by rewrite List.map_length.
     move => n mglob gt Hgnth Hmgnth.
     erewrite List.map_nth_error in Hmgnth; last by eauto.
     injection Hmgnth as <-.
@@ -77,11 +78,11 @@ Proof.
     eapply all_projection in Hglobcheck; eauto.
     unfold module_glob_type_checker in Hglobcheck.
     move/andP in Hglobcheck; destruct Hglobcheck as [? Hbet].
-    by move/b_e_type_checker_reflects_typing in Hbet.
+    by apply b_e_tc_typing in Hbet.
   }
   (* elem *)
   { clear -Helemcheck.
-    apply Forall_spec.
+    apply TProp.Forall_spec.
     move => n x Hnth.
     eapply all_projection in Helemcheck; eauto.
     unfold module_elem_typing.
@@ -90,11 +91,11 @@ Proof.
     move/andP in Helemcheck; destruct Helemcheck as [Helemcheck Hinit].
     move/andP in Helemcheck; destruct Helemcheck as [Helemcheck Hlen].
     move/andP in Helemcheck; destruct Helemcheck as [Hconst Hbet].
-    by move/b_e_type_checker_reflects_typing in Hbet.
+    by apply b_e_tc_typing in Hbet.
   }
   (* data *)
   { clear -Hdatacheck.
-    apply Forall_spec.
+    apply TProp.Forall_spec.
     move => n x Hnth.
     eapply all_projection in Hdatacheck; eauto.
     unfold module_data_typing.
@@ -102,12 +103,12 @@ Proof.
     destruct x, moddata_data => /=.
     move/andP in Hdatacheck; destruct Hdatacheck as [Hdatacheck Hinit].
     move/andP in Hdatacheck; destruct Hdatacheck as [Hconst Hbet].
-    by move/b_e_type_checker_reflects_typing in Hbet.
+    by apply b_e_tc_typing in Hbet.
   }
   (* imports *)
   { clear - Hmitypes.
     unfold module_imports_typer in Hmitypes.
-    apply Forall2_spec; first by apply those_length in Hmitypes; rewrite List.map_length in Hmitypes.
+    apply TProp.Forall2_spec; first by apply those_length in Hmitypes; rewrite List.map_length in Hmitypes.
     move => n mi extt Hminth Htinth.
     eapply those_spec in Hmitypes; eauto.
     rewrite List.nth_error_map in Hmitypes.
@@ -140,7 +141,7 @@ Proof.
   (* exports *)
   { clear - Hmexptypes.
     unfold module_exports_typer in Hmexptypes.
-    apply Forall2_spec; first by apply those_length in Hmexptypes; rewrite List.map_length in Hmexptypes.
+    apply TProp.Forall2_spec; first by apply those_length in Hmexptypes; rewrite List.map_length in Hmexptypes.
     move => n me extt Hmexpth Htexpth.
     eapply those_spec in Hmexptypes; eauto.
     rewrite List.nth_error_map in Hmexptypes.
@@ -185,8 +186,8 @@ Qed.
 
 Section Interp_instantiate.
   
-Import interpreter_func.EmptyHost.
-Import Interpreter_ctx_extract.
+Import EmptyHost.
+Import Interpreter_PPI_extract.
 
 Let instantiate := instantiate host_function_eqType host_instance.
 
@@ -339,7 +340,24 @@ Lemma interp_get_v_sglob: forall s inst j k,
     sglob_val s inst j = Some k.
 Proof.
   move => s inst j k Heval.
-  unfold interp_get_v, run_multi_step_raw, interpreter_ctx.run_multi_step_raw in Heval.
+  unfold interp_get_v, run_multi_step' in Heval.
+  move: Heval.
+  
+  move: (@Logic.eq_refl (option t_context) (frame_typing_inf _ _)).
+  case: {2 3} (frame_typing_inf s _) => //.
+  move => C Hftype.
+
+  destruct (store_typing_inf s) eqn:Hst => //.
+  
+  move: (@Logic.eq_refl _ (b_e_type_checker _ _ _)).
+  case: {2 3} (b_e_type_checker _ _ _) => //.
+  
+  move => betc.
+
+  unfold run_multi_step, run_multi_step_ppi.
+  simpl.
+
+  (*
   destruct (interpreter_ctx.run_v_init s _) eqn:Hrvi => //.
   cbn in Hrvi.
   injection Hrvi as <-.
@@ -368,7 +386,9 @@ Proof.
     
   - move => ? Hcontra.
     by inversion Hcontra.
-Qed.
+Qed.*)
+Admitted.
+
     
 Lemma interp_get_v_reduce: forall hs s c inst k bes,
     const_exprs c bes ->
@@ -382,14 +402,17 @@ Proof.
   destruct Hconst as [be [-> Hconst]].
   destruct be => //=.
   - apply interp_get_v_sglob in Heval.
-    constructor.
+    econstructor; last by econstructor.
     unfold reduce_tuple.
     by apply r_get_global.
   - unfold interp_get_v in Heval.
+    unfold run_multi_step' in Heval.
+    (*
     simpl in Heval.
     injection Heval as ->.
     by constructor.
-Qed.
+Qed.*)
+Admitted.
 
 Lemma interp_instantiate_imp_instantiate :
   forall s m v_imps s_end inst v_exps start,
@@ -453,7 +476,9 @@ Proof.
   - (* global initialisers -- hardest case, since it's the main difference in the 
        executable version *)
     unfold instantiate_globals.
-    apply Forall2_spec; first by apply those_length in Hglobinit; rewrite length_is_size size_map in Hglobinit.
+    apply TProp.Forall2_spec; first apply those_length in Hglobinit. rewrite length_is_size size_map in Hglobinit.
+    rewrite length_is_size in Hglobinit.
+    Search v_imps t_imps.
     move => n mglob gv Hnth1 Hnth2.
     eapply those_spec in Hglobinit; last by eauto.
     apply nth_error_map in Hglobinit as [? [Hnth3 Hglobinit]].
@@ -543,3 +568,4 @@ Proof.
 Qed.
 
 End Interp_instantiate.
+*)

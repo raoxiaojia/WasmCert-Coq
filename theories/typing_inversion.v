@@ -70,7 +70,7 @@ Qed.
 
 Lemma Unop_typing: forall C t op t1s t2s,
     be_typing C [::BI_unop t op] (Tf t1s t2s) ->
-    ((t1s = t2s) ** { ts | t1s = ts ++ [::t] }).
+    ((t1s = t2s) ** { ts & t1s = ts ++ [::t] }).
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -83,7 +83,7 @@ Qed.
 
 Lemma Binop_typing: forall C t op t1s t2s,
     be_typing C [::BI_binop t op] (Tf t1s t2s) ->
-    (t1s = t2s ++ [::t]) ** { ts | t2s = ts ++ [::t]}.
+    (t1s = t2s ++ [::t]) ** { ts & t2s = ts ++ [::t]}.
 Proof.
   move => C t op t1s t2s HType.
   gen_ind_subst HType.
@@ -185,7 +185,7 @@ Qed.
 
 Lemma Br_if_typing: forall C ts1 ts2 i,
     be_typing C [::BI_br_if i] (Tf ts1 ts2) ->
-    { ts & {ts' & (ts2 = ts ++ ts') ** (ts1 = ts2 ++ [::T_i32]) ** (i < length (tc_label C)) ** plop2 C i ts'}}.
+    { ts & {ts' & (ts2 = ts ++ ts') /\ (ts1 = ts2 ++ [::T_i32]) /\ (i < length (tc_label C)) /\ plop2 C i ts'}}.
 Proof.
   move => C ts1 ts2 i HType.
   gen_ind_subst HType => //=.
@@ -364,8 +364,8 @@ Qed.
 
 Lemma Break_typing: forall n C t1s t2s,
     be_typing C [::BI_br n] (Tf t1s t2s) ->
-    { ts & { ts0 & (n < size (tc_label C)) **
-               plop2 C n ts **
+    { ts & { ts0 & (n < size (tc_label C)) /\
+               plop2 C n ts /\
                (t1s = ts0 ++ ts)}}.
 Proof.
   intros ???? HType.
@@ -379,7 +379,7 @@ Qed.
 
 Lemma Return_typing: forall C t1s t2s,
     be_typing C [::BI_return] (Tf t1s t2s) ->
-    { ts & { ts' & (t1s = ts' ++ ts) **
+    { ts & { ts' & (t1s = ts' ++ ts) /\
                    (tc_return C = Some ts)}}.
 Proof.
   intros ??? HType.
@@ -393,9 +393,9 @@ Qed.
 
 Lemma Call_typing: forall j C t1s t2s,
     be_typing C [::BI_call j] (Tf t1s t2s) ->
-    { ts  & {t1s' & {t2s' & (j < length (tc_func_t C)) **
-    (List.nth_error (tc_func_t C) j = Some (Tf t1s' t2s')) **
-                         (t1s = ts ++ t1s') **
+    { ts  & {t1s' & {t2s' & (j < length (tc_func_t C)) /\
+    (List.nth_error (tc_func_t C) j = Some (Tf t1s' t2s')) /\
+                         (t1s = ts ++ t1s') /\
                          (t2s = ts ++ t2s')}}}.
 Proof.
   intros ???? HType.
@@ -409,10 +409,10 @@ Qed.
 
 Lemma Call_indirect_typing: forall i C t1s t2s,
     be_typing C [::BI_call_indirect i] (Tf t1s t2s) ->
-    {tn & {tm & { ts & ( tc_table C <> nil) **
-    (i < length (tc_types_t C)) **
-    (List.nth_error (tc_types_t C) i = Some (Tf tn tm)) **
-    (t1s = ts ++ tn ++ [::T_i32]) ** (t2s = ts ++ tm)}}}.
+    {tn & {tm & { ts & ( tc_table C <> nil) /\
+    (i < length (tc_types_t C)) /\
+    (List.nth_error (tc_types_t C) i = Some (Tf tn tm)) /\
+    (t1s = ts ++ tn ++ [::T_i32]) /\ (t2s = ts ++ tm)}}}.
 Proof.
   intros ???? HType.
   gen_ind_subst HType => //=.
@@ -990,7 +990,7 @@ Proof.
   destruct s => //=.
   remove_bools_options.
   simpl in HN.
-  destruct HST as [Hcl [Htab Hmem]].
+  destruct HST as [[Hcl Htab] Hmem].
   by eapply TProp.Forall_nth_error in Hcl; eauto.
 Qed.
 
@@ -1138,12 +1138,12 @@ Proof.
   subst. simpl in *.
   destruct tc_table => //=.
   remove_bools_options.
-  destruct HST as [Hcl [Htab Hmem]].
-  rewrite -> List.Forall_forall in Htab.
+  destruct HST as [[Hcl Htab] Hmem].
+  rewrite -> list_all_forall in Htab.
   assert (HIN1: List.In t0 s_tables).
   { by apply List.nth_error_In in Hoption0. }
-  apply Htab in HIN1. destruct HIN1 as [HIN1 _].
-  rewrite -> List.Forall_forall in HIN1.
+  apply Htab in HIN1. move/andP in HIN1. destruct HIN1 as [HIN1 _].
+  rewrite -> list_all_forall in HIN1.
   assert (HIN2: List.In (Some a) (table_data t0)).
   { by apply List.nth_error_In in Hoption. }
   apply HIN1 in HIN2.

@@ -49,31 +49,6 @@ Definition global_typing_inf (gs: list global) (n: nat) : option global_type :=
 Definition globals_typing_inf (s: store_record) (inst: instance) : option (list global_type) :=
   those (map (fun i => global_typing_inf s.(s_globals) i) inst.(inst_globs)).
 
-Definition inst_typing_inf (s: store_record) (inst: instance) : option t_context :=
-  match funcs_typing_inf s inst with
-  | Some fts =>
-      match tabs_typing_inf s inst with
-      | Some tts =>
-          match mems_typing_inf s inst with
-          | Some mts =>
-              match globals_typing_inf s inst with
-              | Some gts =>
-                  Some (Build_t_context inst.(inst_types) fts gts tts mts nil nil None)
-              | _ => None
-              end
-          | _ => None
-          end
-      | _ => None
-      end
-  | _ => None
-  end.
-
-Definition frame_typing_inf (s: store_record) (f: frame) : option t_context :=
-  match inst_typing_inf s f.(f_inst) with
-  | Some C => Some (upd_local C ((map typeof f.(f_locs)) ++ tc_local C))
-  | None => None
-  end.
-
 Lemma func_typing_inf_agree: forall xs n x,
     (func_typing_inf xs n == Some x) = 
       functions_agree xs n x.
@@ -196,6 +171,25 @@ Proof.
   by apply global_typing_inf_agree.
 Qed.
 
+Definition inst_typing_inf (s: store_record) (inst: instance) : option t_context :=
+  match funcs_typing_inf s inst with
+  | Some fts =>
+      match tabs_typing_inf s inst with
+      | Some tts =>
+          match mems_typing_inf s inst with
+          | Some mts =>
+              match globals_typing_inf s inst with
+              | Some gts =>
+                  Some (Build_t_context inst.(inst_types) fts gts tts mts nil nil None)
+              | _ => None
+              end
+          | _ => None
+          end
+      | _ => None
+      end
+  | _ => None
+  end.
+
 Lemma inst_typing_inf_impl: forall s inst C,
     inst_typing_inf s inst = Some C ->
     inst_typing s inst C.
@@ -211,4 +205,21 @@ Proof.
   by apply/eqP.
 Defined.
   
+Definition frame_typing_inf (s: store_record) (f: frame) : option t_context :=
+  match inst_typing_inf s f.(f_inst) with
+  | Some C => Some (upd_local C ((map typeof f.(f_locs)) ++ tc_local C))
+  | None => None
+  end.
+
+Lemma frame_typing_inf_impl: forall s f C,
+    frame_typing_inf s f = Some C ->
+    frame_typing s f C.
+Proof.
+  move => s f C Hinf.
+  unfold frame_typing_inf in Hinf.
+  remove_bools_options.
+  apply inst_typing_inf_impl in Hoption.
+  by econstructor; eauto.
+Defined.
+
 End Context_inference.

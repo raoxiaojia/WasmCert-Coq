@@ -213,12 +213,12 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
   end.
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
-  match @run_multi_step 5 s (Build_frame [::] inst) (operations.to_e_list b_es) with
-  | inr vs =>
-    match vs with
-    | [:: v] => Some v
-    | _ => None
-    end
+  match @run_multi_step' 5 s (Build_frame [::] inst) b_es [::T_i32] with
+  | Some (@RSP_terminal res _) =>
+      match (map e_to_v res) with
+      | [:: v] => Some v
+      | _ => None
+      end
   | _ => None
   end.
 
@@ -310,7 +310,7 @@ End Instantiation_func.
 
 Module Instantiation_func_extract.
 
-Import interpreter_func.EmptyHost.
+Import interpreter_ppi.EmptyHost.
 
 Definition lookup_exported_function :
     name -> host_state * store_record * instance * seq module_export ->
