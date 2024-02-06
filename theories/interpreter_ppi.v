@@ -131,7 +131,7 @@ Proof.
   by apply Some; split => //.
 Defined.
 
-Definition run_multi_step' (fuel: N) (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
+Definition run_ppi_init (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
 Proof.
   destruct (frame_typing_inf s f) as [C | ] eqn:Hftinf; last exact None.
   destruct (store_typing_inf s) as [Hst | ]; last exact None.
@@ -146,7 +146,13 @@ Proof.
     replace (to_b_list (to_e_list bes)) with bes; first exact Htypecheck.
     by apply b_e_elim.
   }
-  exact (run_multi_step fuel tt Htype).
+  exact (make_ppi_cfg tt Htype).
+Defined.
+
+Definition run_multi_step' (fuel: N) (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
+Proof.
+  destruct (run_ppi_init s f bes ts) as [cfg | ]; last exact None.
+  exact (Some (run_multi_step_ppi fuel cfg)).
 Defined.
   
 End Interpreter_PPI_extract.
