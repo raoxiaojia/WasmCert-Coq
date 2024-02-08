@@ -149,6 +149,27 @@ Proof.
   exact (make_ppi_cfg tt Htype).
 Defined.
 
+(* Dealing with the invocation after instantiation, which is not a basic instruction *)
+Definition run_ppi_init_invoke (s: store_record) (f: frame) (addr: funcaddr) : option res_ppi.
+Proof.
+  destruct (frame_typing_inf s f) as [C | ] eqn:Hftinf; last exact None.
+  destruct (store_typing_inf s) as [Hst | ]; last exact None.
+  destruct (List.nth_error s.(s_funcs) addr) as [cl | ] eqn:Hnth; last exact None.
+  destruct (cl_typing_inf s cl) as [Hclt | ]; last exact None.
+  destruct (cl_type cl) as [ts1 ts2] eqn:Hcltype.
+  destruct ts1; last exact None.
+  apply frame_typing_inf_impl in Hftinf.
+  apply Some.
+  assert (config_typing s f [::AI_invoke addr] ts2) as Htype.
+  { constructor; first exact Hst.
+    econstructor; first exact Hftinf; eauto.
+    eapply ety_invoke; eauto.
+    unfold cl_type_check_single in Hclt.
+    by rewrite Hcltype in Hclt.
+  }
+  exact (make_ppi_cfg tt Htype).
+Defined.
+
 Definition run_multi_step' (fuel: N) (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
 Proof.
   destruct (run_ppi_init s f bes ts) as [cfg | ]; last exact None.
