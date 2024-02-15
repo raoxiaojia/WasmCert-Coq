@@ -37,8 +37,7 @@ module type InterpreterType = sig
   val pure : 'a -> 'a host_event
 
   type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type res_ppi = Extract.Interpreter_PPI_extract.res_ppi
   type administrative_instruction = Extract.administrative_instruction
 
   (** Run the interpreter until reaching a result. *)
@@ -46,14 +45,11 @@ module type InterpreterType = sig
   (*   Extract.instance -> config_tuple -> *)
   (*   (store_record * Extract.res) host_event *)
 
-  val run_v :
-    Extract.nat ->
-    Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
-    (Obj.t * Obj.t Extract.store_record) * Extract.res
+  val run_step :
+    res_ppi -> res_ppi
 
-  (** Run one step of the interpreter. *)
-  val run_step_compat :
-    config_tuple -> Extract.res_tuple
+  val run_init_invoke: 
+    store_record -> Extract.frame -> Extract.funcaddr -> res_ppi option
 
   (** State whether a list of administrative instructions is actually just a list of values. *)
   val is_const_list : administrative_instruction list -> Extract.value0 list option
@@ -64,7 +60,7 @@ module type InterpreterType = sig
     (* config_tuple option *)
     string ->
     (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.administrative_instruction list) option
+    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.funcaddr) option
 
   (** Perform the instantiation of a module. *)
   val interp_instantiate_wrapper :
@@ -80,7 +76,9 @@ module type InterpreterType = sig
   val pp_values : Extract.value0 list -> string
   val pp_store : int (** The indentation level *) -> store_record -> string
   val pp_res_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.res_step) -> string
+    res_ppi -> string
+  val pp_res_tuple_except_store_typed :
+    res_ppi -> string
   val pp_config_tuple_except_store :
     ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
     string

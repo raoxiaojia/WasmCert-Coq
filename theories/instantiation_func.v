@@ -214,7 +214,7 @@ Definition external_type_checker (s : store_record) (v : v_ext) (e : extern_t) :
 
 Definition interp_get_v (s : store_record) (inst : instance) (b_es : list basic_instruction) : option value :=
   match @run_multi_step' 5 s (Build_frame [::] inst) b_es [::T_i32] with
-  | Some (@RSP_terminal res _) =>
+  | Some (RSP_terminal res _) =>
       match (map e_to_v res) with
       | [:: v] => Some v
       | _ => None
@@ -283,7 +283,7 @@ Definition interp_instantiate_wrapper (m : module) : option ((host_state * store
   end.
 
 Definition lookup_exported_function (n : name) (store_inst_exps : host_state * store_record * instance * list module_export)
-    : option (host_state * store_record * frame * seq administrative_instruction) :=
+    : option (host_state * store_record * frame * funcaddr) :=
   let '(hs, s, inst, exps) := store_inst_exps in
   List.fold_left
     (fun acc e =>
@@ -295,7 +295,7 @@ Definition lookup_exported_function (n : name) (store_inst_exps : host_state * s
           | MED_func (Mk_funcidx fi) =>
             match List.nth_error s.(s_funcs) fi with
             | None => None
-            | Some fc => Some (hs, s, (Build_frame nil inst), [::AI_invoke fi])
+            | Some fc => Some (hs, s, (Build_frame nil inst), fi)
             end
           | _ => None
           end
@@ -314,7 +314,7 @@ Import interpreter_ppi.EmptyHost.
 
 Definition lookup_exported_function :
     name -> host_state * store_record * instance * seq module_export ->
-    option (host_state * store_record * frame * seq administrative_instruction) :=
+    option (host_state * store_record * frame * funcaddr) :=
   lookup_exported_function.
 
 Definition interp_instantiate_wrapper :

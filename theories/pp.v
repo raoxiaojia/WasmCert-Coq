@@ -410,11 +410,99 @@ Definition pp_store (n : indentation) (s : store_record host_function) : string 
   indent n ("tables" ++ newline) ++
   pp_tables (n.+1) s.(s_tables).
 
+(* Typing terms *)
+
+Fixpoint pp_bet {C es tf} (p: be_typing C es tf) (n: indentation) : string :=
+  indent n (
+  match p with
+  | bet_const _ _ => "const"
+  | bet_unop _ _ _ _ => "unop"
+  | bet_binop _ _ _ _ => "binop"
+  | bet_testop _ _ _ _ => "testop"
+  | bet_relop _ _ _ _ => "relop"
+  | bet_convert _ _ _ _ _ => "convert"
+  | bet_reinterpret _ _ _ _ _ => "reinterpret"
+  | bet_unreachable _ _ _ => "unreachable"
+  | bet_nop _ => "nop"
+  | bet_drop _ _ => "drop"
+  | bet_select _ _ => "select"
+  | bet_block _ _ _ _ _ => "block"
+  | bet_loop _ _ _ _ _ => "loop"
+  | bet_if_wasm _ _ _ _ _ _ _ => "if"
+  | bet_br _ _ _ _ _ _ _ => "br"
+  | bet_br_if _ _ _ _ _ => "br_if"
+  | bet_br_table _ _ _ _ _ _ _ => "br_table"
+  | bet_return _ _ _ _ _ => "return"
+  | bet_call _ _ _ _ _ => "call"
+  | bet_call_indirect _ _ _ _ _ _ _ => "call_indirect"
+  | bet_get_local _ _ _ _ _ => "get_local"
+  | bet_set_local _ _ _ _ _ => "set_local"
+  | bet_tee_local _ _ _ _ _ => "tee_local"
+  | bet_get_global _ _ _ _ _ => "get_global"
+  | bet_set_global _ _ _ _ _ _ _ _ => "set_global"
+  | bet_load _ _ _ _ _ _ _ => "load"
+  | bet_store _ _ _ _ _ _ _ => "store"
+  | bet_current_memory _ _ => "current_memory"
+  | bet_grow_memory _ _ => "grow_memory"
+  | bet_empty _ => "empty"
+  | bet_composition _ _ e _ _ _ pes pe => "be_composition with tail " ++ pp_basic_instruction 0 e ++ pp_bet pes (S n) ++ newline ++ pp_bet pe (S n)
+  | bet_weakening _ _ ts _ _ pes => "be_weakening by " ++ pp_value_types ts ++ newline ++ pp_bet pes (S n)
+  end).
+
+Definition pp_clt {s: (store_record host_function)} {cl tf} (p: cl_typing s cl tf) (n: indentation) : string :=
+  indent n (
+  match p with
+  | cl_typing_native _ _ _ _ _ _ _ _ _ pit _ _ pes => "cl_typing_native" ++ newline ++ pp_bet pes (S n)
+  | cl_typing_host _ _ h => "cl_typing_host"
+  end).
+
+Fixpoint pp_et {s C es tf} (p: e_typing s C es tf) (n: indentation) : string :=
+  indent n (
+  match p with
+  | ety_a _ _ bes _ pes => "bet" ++ newline ++ pp_bet pes (S n)
+  | ety_composition _ _ es e _ _ _ pes pe => "e_composition with tail " ++ pp_administrative_instruction 0 e ++ pp_et pes (S n) ++ newline ++ pp_et pe (S n)
+  | ety_weakening _ _ _ ts _ _ pes => "e_weakening by " ++ pp_value_types ts ++ newline ++ pp_et pes (S n)
+  | ety_trap _ _ _ => "trap"
+  | ety_local _ _ _ _ _ _ pes _ => "frame" ++ newline ++ pp_st pes (S n)
+  | ety_invoke _ _ _ _ _ _ pclt => "invoke" ++ newline ++ pp_clt pclt (S n)
+  | ety_label _ _ _ _ _ _ _ pes0 pes _ => "label" ++ newline ++ pp_et pes0 (S n) ++ newline ++ pp_et pes (S n)
+  end)
+with pp_st {s rs f es ts} (p: s_typing s rs f es ts) (n: indentation) : string :=
+  indent n (
+  match p with
+  | mk_s_typing _ _ _ _ _ _ _ pft _ pet _ => "s_typing" ++ newline ++ pp_et pet n
+  end).
+
+Definition pp_cfgt {s f es ts} (p: config_typing s f es ts) (n: indentation) : string :=
+  indent n (
+  match p with
+  | mk_config_typing _ _ _ _ pstoret pst => "config" ++ newline ++ pp_st pst n
+  end).
+
 (* XXX disambiguate between cfg/res tuple with/without hs? *)
 Definition pp_config_tuple_except_store (cfg : store_record host_function * frame * list administrative_instruction) : string :=
   let '(s, f, es) := cfg in
   pp_administrative_instructions 0 es ++
   "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline.
+
+Let host := host host_function.
+
+Variable host_instance : host.
+
+Definition pp_res_tuple_except_store (cfg: @res_ppi host_function host_instance) : string :=
+  match cfg with
+  | RSP_exhaustion => "exhaustion"
+  | RSP_terminal es _ => "termination with " ++ pp_administrative_instructions 0 es
+  | RSP_cfg hs s f es ts _ => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
+  end.
+
+Definition pp_res_tuple_except_store_typed (cfg: @res_ppi host_function host_instance) : string :=
+  match cfg with
+  | RSP_exhaustion => "exhaustion"
+  | RSP_terminal es _ => "termination with " ++ pp_administrative_instructions 0 es
+  | RSP_cfg hs s f es ts pcfgt => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline ++ "and typing term:" ++ newline ++ pp_cfgt pcfgt 0 ++ newline
+  end.
+
 End Host.
 
 (** As-is, [eqType] tends not to extract well.
@@ -422,6 +510,7 @@ End Host.
 Module PP.
 
 Import EmptyHost.
+Import Interpreter_PPI_extract.
 
 Section Show.
 
@@ -432,6 +521,11 @@ Definition pp_store : nat -> store_record -> string := pp_store host_function_eq
 Definition pp_config_tuple_except_store : store_record * frame * list administrative_instruction -> string :=
   pp_config_tuple_except_store host_function_eqType.
 
+Definition pp_res_tuple_except_store :=
+  @pp_res_tuple_except_store host_function_eqType host_instance.
+
+Definition pp_res_tuple_except_store_typed :=
+  @pp_res_tuple_except_store_typed host_function_eqType host_instance.
 
 Definition pp_administrative_instructions : nat -> list administrative_instruction -> string :=
   pp_administrative_instructions.

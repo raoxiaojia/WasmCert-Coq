@@ -9,52 +9,33 @@ Unset Strict Implicit.
 
 Unset Printing Implicit Defensive.
 
-(** Extraction **)
-Module EmptyHost.
+Section Host.
 
-Definition host_function := void.
+Variable host_function: eqType.
 
-Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
-Proof. decidable_equality. Defined.
+Let store_record := store_record host_function.
+Let function_closure := function_closure host_function.
+Let e_typing := @e_typing host_function.
+Let s_typing := @s_typing host_function.
+Let inst_typing := @inst_typing host_function.
 
-Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
-Definition host_functionP : Equality.axiom host_function_eqb :=
-  eq_dec_Equality_axiom host_function_eq_dec.
+Let host := host host_function.
 
-Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
-Global Canonical Structure host_function_eqType :=
-  Eval hnf in EqType host_function host_function_eqMixin.
+Variable host_instance : host.
 
-Definition host : Type := host host_function_eqType.
+Let host_state := host_state host_instance.
 
-Definition store_record := store_record host_function_eqType.
-Definition function_closure := function_closure host_function_eqType.
+Variable hs0: host_state.
 
-Definition host_instance : host.
-Proof.
-  by refine {|
-      host_state := unit_eqType ;
-      host_application _ _ _ _ _ _ _ := False
-    |}.
-Defined.
+Let host_application := @host_application host_function host_instance.
 
-Definition config_tuple := config_tuple host_function.
+Let reduce := @reduce host_function host_instance.
 
-Definition host_state := host_state host_instance.
+Let t_progress := @t_progress host_function host_instance.
 
-End EmptyHost.
+Let t_preservation := @t_preservation host_function host_instance.
 
-
-Module Interpreter_PPI_extract.
-
-Import EmptyHost.
-
-Let t_progress := @t_progress host_function_eqType host_instance.
-
-Let t_preservation := @t_preservation host_function_eqType host_instance.
-
-Let config_typing := @config_typing host_function_eqType.
-
+Let config_typing := @config_typing host_function.
 
 Inductive res_ppi : Type :=
 | RSP_exhaustion
@@ -71,27 +52,22 @@ Proof.
   destruct cfg as [| hs s f es ts Htype | Hterm].
   - exact RSP_exhaustion.
   - destruct (t_progress hs Htype) as [Hterm | [s' [f' [es' [hs' Hred]]]]].
-    + exact (RSP_cfg hs Htype).
+    + exact (@RSP_terminal es Hterm).
     + specialize (t_preservation Hred Htype) as Htype'.
       by eapply RSP_cfg; eauto.
   - by eapply RSP_terminal; eauto.
 Defined.
 
-(* This obviously terminate, but the only purpose of it is using the efficient N for extraction (instead of inserting extra proofs), so let's omit the proof *)
-Unset Guard Checking.
-
-Fixpoint run_multi_step_ppi (fuel: N) (cfg: res_ppi) {struct fuel}: res_ppi :=
+Fixpoint run_multi_step_ppi (fuel: nat) (cfg: res_ppi) {struct fuel}: res_ppi :=
   match fuel with
-  | 0%N => RSP_exhaustion
-  | Npos p =>
+  | 0 => RSP_exhaustion
+  | (S fuel') =>
       match cfg with
       | RSP_cfg hs s f es ts Htype =>
-          run_multi_step_ppi (Pos.pred_N p) (run_one_step_ppi (RSP_cfg hs Htype))
+          run_multi_step_ppi fuel' (run_one_step_ppi (RSP_cfg hs Htype))
       | x => x
       end
   end.
-
-Set Guard Checking.
 
 Definition make_ppi_cfg hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
   RSP_cfg hs Htype.
@@ -146,7 +122,7 @@ Proof.
     replace (to_b_list (to_e_list bes)) with bes; first exact Htypecheck.
     by apply b_e_elim.
   }
-  exact (make_ppi_cfg tt Htype).
+  exact (make_ppi_cfg hs0 Htype).
 Defined.
 
 (* Dealing with the invocation after instantiation, which is not a basic instruction *)
@@ -167,7 +143,7 @@ Proof.
     unfold cl_type_check_single in Hclt.
     by rewrite Hcltype in Hclt.
   }
-  exact (make_ppi_cfg tt Htype).
+  exact (make_ppi_cfg hs0 Htype).
 Defined.
 
 Definition run_multi_step' (fuel: N) (s: store_record) (f: frame) (bes: list basic_instruction) (ts: result_type) : option res_ppi.
@@ -175,5 +151,57 @@ Proof.
   destruct (run_ppi_init s f bes ts) as [cfg | ]; last exact None.
   exact (Some (run_multi_step_ppi fuel cfg)).
 Defined.
-  
+
+End Host.
+
+(** Extraction **)
+Module EmptyHost.
+
+Definition host_function := void.
+
+Definition host_function_eq_dec : forall f1 f2 : host_function, {f1 = f2} + {f1 <> f2}.
+Proof. decidable_equality. Defined.
+
+Definition host_function_eqb f1 f2 : bool := host_function_eq_dec f1 f2.
+Definition host_functionP : Equality.axiom host_function_eqb :=
+  eq_dec_Equality_axiom host_function_eq_dec.
+
+Global Canonical Structure host_function_eqMixin := EqMixin host_functionP.
+Global Canonical Structure host_function_eqType :=
+  Eval hnf in EqType host_function host_function_eqMixin.
+
+Definition host : Type := host host_function_eqType.
+
+Definition store_record := store_record host_function_eqType.
+Definition function_closure := function_closure host_function_eqType.
+
+Definition host_instance : host.
+Proof.
+  by refine {|
+      host_state := unit_eqType ;
+      host_application _ _ _ _ _ _ _ := False
+    |}.
+Defined.
+
+Definition config_tuple := config_tuple host_function.
+
+Definition host_state := host_state host_instance.
+
+End EmptyHost.
+
+
+Module Interpreter_PPI_extract.
+
+Import EmptyHost.
+
+Definition res_ppi := @res_ppi host_function_eqType host_instance.
+
+Definition run_one_step_ppi := @run_one_step_ppi host_function_eqType host_instance.
+
+Definition run_ppi_init_invoke := @run_ppi_init_invoke host_function_eqType host_instance tt.
+
+Definition run_multi_step' := @run_multi_step' host_function_eqType host_instance tt.
+
+Definition is_const_list := e_to_v_list_opt.
+
 End Interpreter_PPI_extract.

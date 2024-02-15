@@ -9,6 +9,7 @@ module DummyHost = struct
   let show_host_function _ = assert false
 end
 
+
 module type InterpreterType = sig
 
   module Host : Host
@@ -21,17 +22,18 @@ module type InterpreterType = sig
   val pure : 'a -> 'a host_event
 
   type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type res_ppi = Extract.Interpreter_PPI_extract.res_ppi
   type administrative_instruction = Extract.administrative_instruction
-
+(*
   val run_v :
     Extract.nat ->
     Obj.t * Obj.t Extract.store_record * Extract.frame * administrative_instruction list ->
     (Obj.t * Obj.t Extract.store_record) * Extract.res
+    *)
 
-  val run_step_compat :
-    config_tuple -> Extract.res_tuple
+  val run_step : res_ppi -> res_ppi
+
+  val run_init_invoke: store_record -> Extract.frame -> Extract.funcaddr -> res_ppi option
 
   val is_const_list : administrative_instruction list -> Extract.value0 list option
 
@@ -41,7 +43,7 @@ module type InterpreterType = sig
     (* XXX where does "Dune__exe__Extract" come from? should it be exposed? *)
     string ->
     (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.instance) * Extract.module_export list) ->
-    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.administrative_instruction list) option
+    (((Extract.Equality.sort * Extract.EmptyHost.store_record) * Extract.frame) * Extract.funcaddr) option
 
   val interp_instantiate_wrapper :
     (* Extract.module0 -> *)
@@ -54,7 +56,9 @@ module type InterpreterType = sig
   val pp_values : Extract.value0 list -> string
   val pp_store : int -> Dune__exe__Extract.EmptyHost.store_record -> string
   val pp_res_tuple_except_store :
-    ((Extract.EmptyHost.store_record * Extract.frame) * Extract.res_step) -> string
+    res_ppi -> string
+  val pp_res_tuple_except_store_typed :
+    res_ppi -> string
   val pp_config_tuple_except_store :
     ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
     string
@@ -83,24 +87,22 @@ functor (EH : Host) -> struct
     let* b = b in
     pure (a, b)
 
-  (* We are based on the functional version of the interpreter for now *)
-  module Interpreter = Extract.Interpreter_func_extract
+  module Interpreter = Extract.Interpreter_PPI_extract
   module Instantiation = Extract.Instantiation_func_extract
   module PP = Extract.PP
 
   type store_record = Extract.EmptyHost.store_record
-  type config_tuple = Extract.config_tuple
-  type res_tuple = Extract.res_tuple
+  type res_ppi = Extract.Interpreter_PPI_extract.res_ppi
   type administrative_instruction = Extract.administrative_instruction
 
-  let run_v i cfg =
-    let (hs, s, f, es) = cfg in
-    Interpreter.run_v hs s f es i
+  let run_step cfg =
+    Interpreter.run_one_step_ppi cfg
 
-  let run_step_compat cfg =
-    Interpreter.run_step_compat cfg
+  let run_init_invoke (s: store_record) f addr = 
+    Interpreter.run_ppi_init_invoke s f addr
 
-  let is_const_list = Interpreter.is_const_list
+  let is_const_list = 
+    Interpreter.is_const_list
 
   let lookup_exported_function name =
     Instantiation.lookup_exported_function (Utils.explode name)
@@ -120,6 +122,9 @@ functor (EH : Host) -> struct
 
   let pp_res_tuple_except_store r =
     Utils.implode (PP.pp_res_tuple_except_store r)
+
+  let pp_res_tuple_except_store_typed r =
+    Utils.implode (PP.pp_res_tuple_except_store_typed r)
 
   let pp_config_tuple_except_store cfg =
     Utils.implode (PP.pp_config_tuple_except_store cfg)
