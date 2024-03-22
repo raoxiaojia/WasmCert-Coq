@@ -11,6 +11,6 @@ This test contains a function returning multiple values.
 ```sh
 $ wasm_coq_interpreter multivalue.wasm -r main
 i32.const 42
- i64.const 10000
+i64.const 10000
 
 ```
