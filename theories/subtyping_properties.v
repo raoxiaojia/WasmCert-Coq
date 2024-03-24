@@ -279,6 +279,15 @@ Proof.
   by rewrite values_subtyping_eq.
 Qed.
 
+Lemma values_subtyping_take: forall ts1 ts2 n,
+    (ts1 <ts: ts2) ->
+    (take n ts1 <ts: take n ts2).
+Proof.
+  intros.
+  unfold values_subtyping.
+  by rewrite all2_take.
+Qed.
+
 Lemma instr_subtyping_weaken: forall ts1 ts2 ts3 ts4 ts,
     (Tf ts1 ts2 <ti: Tf ts3 ts4) ->
     (Tf ts1 ts2 <ti: Tf (ts ++ ts3) (ts ++ ts4)).
@@ -329,6 +338,11 @@ Ltac resolve_subtyping :=
       destruct ts => //; clear H
   | H: is_true (nil <ts: ?ts) |- _ =>
       destruct ts => //; clear H
+                        
+  (* subtyping of take *)
+  | H: is_true (?ts1 <ts: ?t2) |-
+      context [ take ?n ?ts1 <ts: take ?n ?ts2 ] =>
+      rewrite (values_subtyping_take n H) => //
                         
   (* singleton list subtyping *)
   | H: is_true ([::?t1] <ts: [::?t2]) |- _ =>

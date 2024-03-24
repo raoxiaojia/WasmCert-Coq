@@ -8,7 +8,7 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-From Wasm Require Import type_checker typing_inversion.
+From Wasm Require Import type_checker tactic typing_inversion.
 
 Section Host.
 
@@ -29,6 +29,14 @@ Proof.
   eapply IHl; eauto; by lias.
 Qed.
 
+Lemma to_ct_list_rev: forall ts,
+    rev (to_ct_list ts) = to_ct_list (rev ts).
+Proof.
+  intros.
+  unfold to_ct_list.
+  by rewrite map_rev.
+Qed.
+
 (* Old weakening rule *)
 Lemma bet_weakening: forall C es ts ts1 ts2,
     be_typing C es (Tf ts1 ts2) ->
@@ -39,84 +47,45 @@ Proof.
   by resolve_subtyping.
 Qed.
 
-Lemma ct_compat_symmetry: forall c1 c2,
-  ct_compat c1 c2 ->
-  ct_compat c2 c1.
+Lemma ct_consumable_cons: forall l1 l2 x1 x2,
+  ct_consumable (cons x1 l1) (cons x2 l2) <->
+  ct_compat x1 x2 /\ ct_consumable l1 l2.
 Proof.
+  unfold ct_consumable.
   intros.
-  destruct c1, c2 => //=.
-  simpl in H.
-  move/eqP in H.
-  subst.
-  by apply/eqP.
-Qed.
-
-Lemma ct_list_compat_rcons_bool: forall l1 l2 x1 x2,
-  ct_list_compat (rcons l1 x1) (rcons l2 x2) =
-  ct_compat x1 x2 && ct_list_compat l1 l2.
-Proof.
-  induction l1; intros; destruct l2 => //=.
-  - destruct l2 => //=; by lias.
-  - destruct l1 => //=; by lias.
-  - rewrite IHl1. by lias.
-Qed.
-    
-Lemma ct_list_compat_rcons: forall l1 l2 x1 x2,
-  ct_list_compat (rcons l1 x1) (rcons l2 x2) <->
-  ct_compat x1 x2 /\ ct_list_compat l1 l2.
-Proof.
-  split; intros.
-  - rewrite ct_list_compat_rcons_bool in H.
-    by move/andP in H.
-  - move/andP in H.
-    by rewrite ct_list_compat_rcons_bool.
-Qed.
-
-Lemma ct_suffix_rcons: forall l1 l2 x1 x2,
-  ct_suffix (rcons l1 x1) (rcons l2 x2) <->
-  ct_compat x1 x2 /\ ct_suffix l1 l2.
-Proof.
-  unfold ct_suffix.
-  intros.
-  split; move => H.
-  - move/andP in H; destruct H.
-    repeat rewrite size_rcons in H.
-    rewrite drop_rcons in H0; last by repeat rewrite size_rcons; lias.
-    apply ct_list_compat_rcons in H0.
-    destruct H0.
-    split => //; first by apply ct_compat_symmetry.
+  split => /=; move => H; remove_bools_options.
+  - split => //; by lias.
+  - destruct H; remove_bools_options.
     apply/andP; split; first by lias.
-    repeat rewrite size_rcons in H1.
-    by replace (_-_) with (size l2 - size l1) in H1; last by lias.
-  - destruct H.
-    move/andP in H0; destruct H0.
-    repeat rewrite size_rcons.
-    apply/andP; split; first by lias.
-    rewrite drop_rcons; last by lias.
-    replace (_-_) with (size l2 - size l1); last by lias.
-    apply ct_list_compat_rcons.
-    split => //.
-    by apply ct_compat_symmetry.
-Qed.
-    
-Lemma ct_suffix_empty: forall l,
-  ct_suffix [::] l.
-Proof.
-  move => l. unfold ct_suffix => /=.
-  rewrite subn0. apply/eqP.
-  by rewrite drop_size.
+    by apply/andP.
 Qed.
 
-Lemma ct_suffix_any_grow: forall l1 l2,
-  ct_suffix l1 l2 ->
+Lemma ct_consumable_empty: forall l,
+  ct_consumable [::] l.
+Proof.
+  move => l. unfold ct_consumable => /=.
+  by rewrite take0.
+Qed.
+(*
+Lemma ct_consumable_any_grow: forall l1 l2,
+  ct_consumable l1 l2 ->
   size l1 < size l2 ->
-  ct_suffix [::CTA_any & l1] l2.
+  ct_consumable (l1 ++ [::CTA_any]) l2.
 Proof.
-  unfold ct_suffix => /=.
+  unfold ct_consumable => /=.
   move => l1 l2 Hsuf Hsize.
+  remove_bools_options.
+  apply/andP; split; first by lias.
+  destruct l2 => //=.
+  
   move/andP in Hsuf; destruct Hsuf as [_ Hcompat].
   apply/andP; split => //=.
   move: l1 l2 Hsize Hcompat.
+  induction l1 as [| x l1] => //=; destruct l2 as [| y l2] => //=; intros; first by rewrite take0.
+  remove_bools_options.
+  apply IHl1 in H0; last by lias.
+  remove_bools_options.
+  rewrite H0.
   induction l1 using last_ind => //=; move => l2; case/lastP: l2 => [|l2 x']; intros => //.
   - rewrite -> size_rcons in *.
     replace (_-_) with (size l2); last by lias.
@@ -137,62 +106,63 @@ Proof.
     rewrite - rcons_cons.
     by apply ct_list_compat_rcons.
 Qed.
-    
-Lemma ct_suffix_any_1: forall l,
+*)    
+Lemma ct_consumable_any_1: forall l,
   size l > 0 ->
-  ct_suffix [::CTA_any] l.
+  ct_consumable [::CTA_any] l.
 Proof.
   move => l H.
   destruct l => //=.
-  unfold ct_suffix, ct_list_compat => /=.
-  destruct (_ -1) eqn: Hsize => //.
-  - destruct l => //=. apply/andP.
-    split => //. by destruct c.
-  - assert (size (drop n l) = 1).
-    { rewrite size_drop. by lias. }
-    simpl. remember (drop n l) as l'.
-    do 2 destruct l' => //=.
-    by destruct c0.
+  unfold ct_consumable, ct_list_compat => /=.
+  by rewrite take0.
 Qed.
 
-Lemma ct_list_compat_self: forall l,
-  ct_list_compat l l.
+Lemma ct_list_compat_self: forall cts l,
+  cts = to_ct_list l ->
+  ct_list_compat cts l.
 Proof.
-  induction l => //.
-  unfold all2.
-  apply/andP; split => //.
-  by destruct a => //=.
+  move => cts l ->.
+  induction l => //=.
+  rewrite IHl; by resolve_subtyping.
 Qed.
 
-Lemma ct_suffix_self: forall l,
-  ct_suffix l l.
+Lemma ct_consumable_self: forall cts l,
+  cts = to_ct_list l ->
+  ct_consumable cts l.
 Proof.
-  move => l.
-  unfold ct_suffix => /=.
-  apply/andP; split => //.
-  rewrite subnn.
-  rewrite drop0.
+  move => cts l ->.
+  unfold ct_consumable => /=.
+  apply/andP; split => //; first by rewrite size_map.
+  rewrite size_map take_size.
   by apply ct_list_compat_self.
 Qed.
 
-Lemma ct_suffix_suffix: forall l1 l2,
-  ct_suffix (to_ct_list l2) (to_ct_list (l1 ++ l2)).
+Lemma ct_consumable_prefix: forall cts l1 l2,
+  cts = to_ct_list l1 ->
+  ct_consumable cts (l1 ++ l2).
 Proof.
-  move => l1 l2.
-  unfold ct_suffix.
-  apply/andP; split => //; repeat rewrite size_map; rewrite size_cat => //.
-  - by lias.
-  - unfold to_ct_list. rewrite map_cat.
-    replace (size l1 + size l2 - size l2) with (size l1); last by lias.
-    rewrite drop_size_cat; last by rewrite size_map.
-    by apply ct_list_compat_self.
+  move => cts l1 l2 ->.
+  unfold ct_consumable.
+  apply/andP; split => //; first by rewrite size_cat size_map; lias.
+  rewrite size_map.
+  rewrite take_size_cat => //.
+  by apply ct_list_compat_self.
 Qed.
 
-Lemma ct_suffix_prefix: forall l1 l2 l3,
-  ct_suffix (l1 ++ l2) l3 ->
-  ct_suffix l2 l3.
+(*
+Lemma ct_consumable_suffix: forall l1 l2 l3,
+  ct_consumable (to_ct_list (l1 ++ l2)) l3 ->
+  ct_consumable (to_ct_list l1) l3.
 Proof.
-  unfold ct_suffix; intros.
+  unfold ct_consumable.
+  move => l1 l2 l3.
+  repeat rewrite size_map.
+  rewrite size_cat.
+  intros; remove_bools_options.
+  apply/andP; split; first by lias.
+  unfold ct_list_compat, to_ct_list in *.
+  rewrite map_cat in H0.
+  rewrite size_map in *.
   move/andP in H; rewrite size_cat in H; destruct H.
   apply/andP; split; first by lias.
   unfold ct_list_compat in *.
@@ -208,47 +178,31 @@ Proof.
   simpl.
   by replace (_-_) with ((size l3 - (size l1 + size l2)).+1); last by lias.
 Qed.
-  
-Lemma ct_suffix_extend: forall l1 l2 l3,
-  ct_suffix l1 l2 ->
-  ct_suffix l1 (l3 ++ l2).
+*)  
+
+Lemma ct_consumable_extend: forall l1 l2 l3,
+  ct_consumable l1 l2 ->
+  ct_consumable l1 (l2 ++ l3).
 Proof.
-  unfold ct_suffix.
-  move => l1 l2 l3 H.
-  move/andP in H; destruct H as [H1 H2].
+  unfold ct_consumable.
+  move => l1 l2 l3 H; remove_bools_options.
   apply/andP; split; first by rewrite size_cat; lias.
-  rewrite size_cat.
-  rewrite drop_cat.
-  replace (size l3 + size l2 - size l1 < size l3) with false; last by lias.
-  replace (size l3 + size l2 - size l1 - size l3) with (size l2 - size l1); last by lias.
-  assumption.
+  unfold ct_list_compat in *.
+  by rewrite takel_cat => //.
 Qed.
 
-Lemma ct_suffix_size: forall ct1 ct2,
-  ct_suffix ct1 ct2 ->
+Lemma ct_consumable_size: forall ct1 ct2,
+  ct_consumable ct1 ct2 ->
   size ct1 <= size ct2.
 Proof.
-  move => ct1 ct2.
-  unfold ct_suffix.
-  move => H.
-  move/andP in H; destruct H as [H _].
-  by repeat rewrite size_map in H.
-Qed.
-
-Lemma upd_label_overwrite: forall C loc lab ret lab',
-  upd_label (upd_local_label_return C loc lab ret) lab'
-  = upd_local_label_return C loc lab' ret.
-Proof.
-  move => C loc lab ret lab'.
-  unfold upd_label.
-  unfold upd_local_label_return. by auto.
+  unfold ct_consumable; by lias.
 Qed.
 
 Lemma consume_empty: forall l,
   consume l [::] = l.
 Proof.
   move => l.
-  by destruct l => //=; rewrite ct_suffix_empty; rewrite subn0; rewrite take_size.
+  by destruct l => //=; rewrite ct_consumable_empty; rewrite drop0.
 Qed.
 
 Lemma produce_empty: forall l,
@@ -260,7 +214,6 @@ Proof.
 Qed.
 
 Lemma produce_empty_top: forall l,
-  l <> CT_bot ->
   produce l (CT_top_type [::]) = CT_top_type [::].
 Proof.
   move => l.
@@ -276,7 +229,7 @@ Proof.
 Qed.
 
 Lemma type_update_empty_prod: forall l ts,
-  type_update l ts (CT_type [::]) = consume l ts.
+  type_update l ts (CT_type [::]) = consume l (rev ts).
 Proof.
   move => l ts.
   unfold type_update. by rewrite produce_empty.
@@ -290,15 +243,16 @@ Ltac simplify_hypothesis Hb :=
   | context C [size (rev _)] => rewrite size_rev in Hb
   | context C [take _ (rev _)] => rewrite take_rev in Hb
   | context C [rev (rev _)] => rewrite revK in Hb
+  | context C [rev (to_ct_list _)] => rewrite to_ct_list_rev in Hb
   | context C [true && _] => rewrite Bool.andb_true_l in Hb
   | context C [_ && true] => rewrite Bool.andb_true_r in Hb
   | context C [false || _] => rewrite Bool.orb_false_l in Hb
   | context C [_ || false] => rewrite Bool.orb_false_r in Hb
   (* It looks really like a bad idea to unfold type_update in general. *)
 (*  | context C [type_update _ _] => unfold type_update in Hb; try simpl in Hb*)
-  | context C [ct_suffix [::] _] => rewrite ct_suffix_empty in Hb; try simpl in Hb
-  | context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 in Hb => //; try simpl in Hb
-  | context C [ct_suffix ?l ?l] => rewrite ct_suffix_self in Hb => //; try simpl in Hb
+  | context C [ct_consumable [::] _] => rewrite ct_consumable_empty in Hb; try simpl in Hb
+  | context C [ct_consumable [::CTA_any] (_::_)] => rewrite ct_consumable_any_1 in Hb => //; try simpl in Hb
+  | context C [ct_consumable (to_ct_list ?l) ?l] => rewrite ct_consumable_self in Hb => //; try simpl in Hb
   | context C [size (map _ _)] => rewrite size_map in Hb
   | context C [size (_ ++ _)] => rewrite size_cat in Hb
   | context C [size (to_ct_list _)] => rewrite size_ct_list in Hb
@@ -309,6 +263,11 @@ Ltac simplify_hypothesis Hb :=
   | context C [take 0 ?x] => rewrite take0 in Hb; simpl in Hb
   | context C [drop 0 ?x] => rewrite drop0 in Hb; simpl in Hb
   | context C [produce _ _] => unfold produce in Hb; simpl in Hb
+  | context C [rev nil] => rewrite rev0
+  | context C [rev [::?t1]] => replace (rev [::t1]) with [::t1]; last by lias
+  | context C [rev [::?t1; ?t2]] => replace (rev [::t1; t2]) with [::t2; t1]; last by lias
+  | context C [rev [::?t1; ?t2; ?t3]] => replace (rev [::t1; t2; t3]) with [::t3; t2; t1]; last by lias
+  | context C [rev (_ ++ _)] => rewrite rev_cat => //
   | context C [ match ?u with | Unop_i _ => _ | Unop_f _ | _ => _ end ] => destruct u => //=
   | context C [ match ?b with | Binop_i _ => _ | Binop_f _ => _ end ] => destruct b => //=
   | context C [ match ?r with | Relop_i _ => _ | Relop_f _ => _ end ] => destruct r => //=
@@ -336,10 +295,10 @@ Lemma CT_top_empty_consume: forall tf,
   consume (CT_top_type [::]) tf = CT_top_type [::].
 Proof.
   move => tf. unfold consume.
-  destruct tf => //=.
-  by rewrite ct_suffix_empty.
+  by destruct tf => //=.
 Qed.
 
+(*
 Definition populate_ct_aux_single (cta: checker_type_aux): value_type :=
   match cta with
   | CTA_any => T_num T_i32
@@ -355,6 +314,7 @@ Definition populate_ct (ct: checker_type) : list value_type :=
   | CT_top_type tn => populate_ct_aux tn
   | CT_bot => [::]
   end.
+*)
 
 Ltac resolve_bet:=
   repeat match goal with
@@ -368,56 +328,78 @@ Ltac resolve_bet:=
 
 Ltac auto_rewrite_cond:=
   repeat match goal with
-         | H: is_true ?expr |- context C [ ?expr ] =>
-           rewrite H => //=
-         | H: ?x <> ?y |- context C [?x != ?y ] =>
-           move/eqP in H; rewrite H => //=
-         | H: is_true (Nat.eqb ?x ?y) |- _ =>
-           move/eqP in H; rewrite H => //=
-         | H: is_true (b_e_type_checker _ _ _) |- _ => simpl in H => //=
-         | |- context C [ ?x == ?x ] =>
-           rewrite eq_refl => //=
-         | |- context C [ true && true ] =>
-           unfold andb => //=
-         | |- context C [ct_suffix [::] _] => rewrite ct_suffix_empty => //=
-         | |- context C [ct_suffix [::CTA_any] (_::_)] => rewrite ct_suffix_any_1 => //=
-         | |- context C [ct_suffix ?l ?l] => rewrite ct_suffix_self => //=
-         | |- context C [ct_suffix ?l (?l)%list] => rewrite ct_suffix_self => //=
-         | |- context C [size (to_ct_list _)] => rewrite size_ct_list => //=
-         | |- context C [?x - ?x] => rewrite subnn => //=
-         | |- context C [?x - 0] => rewrite subn0 => //=
-         | |- context C [take 0 _] => rewrite take0 => //=
-         | |- context C [take (size ?x) ?x] => rewrite take_size => //=
-         | |- context C [drop 0 _] => rewrite drop0 => //=
-         | |- context C [take (drop ?x) ?x] => rewrite drop_size => //=
-         | |- context C [_ :: (tc_labels _)] => rewrite - cat1s => //=
-         | |- context C [_ ++ [::]] => rewrite cats0 => //=
-         | |- context C [size (_ ++ _)] => rewrite size_cat => //=
-         | |- context C [size (_ ++ _)%list] => rewrite size_cat => //=
-         | |- context C [?x + ?n - ?n] => replace (x + n - n) with x; last by lias => //=
-         | |- context C [match ?f with | (Tf _ _) => _ end ] => destruct f => //=
-(*         | |- context C [type_update _ _] => unfold type_update => //=*)
-         | H: match ?expr with | _ => _ end = CT_type _ |- _ => let Hexpr := fresh "Hexpr" in destruct expr eqn: Hexpr => //=
-         | H: match ?expr with | _ => _ end = CT_top_type _ |- _ => let Hexpr := fresh "Hexpr" in destruct expr eqn: Hexpr => //=
-         | H: option_map _ _ = _ |- _ => unfold option_map in H
-         | H: Some _ = Some _ |- _ => inversion H; subst; clear H => //=
-         | H: CT_type _ = CT_type _ |- _ => inversion H; subst; clear H => //=
-         | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
-         | H: is_true (_ == _) |- _ => move/eqP in H
-         | H: ?x = ?x |- _ => clear H
-         | H: _ = _ |- _=> progress (rewrite H; subst => //=)
-         | _ => simplify_goal => //=; (try rewrite ct_suffix_suffix => //=); (try rewrite ct_suffix_self => //=); (try subst => //=)
-         end.
+    | H: is_true ?expr |- context C [ ?expr ] =>
+        rewrite H => //=
+    | H: ?x <> ?y |- context C [?x != ?y ] =>
+        move/eqP in H; rewrite H => //=
+    | H: is_true (Nat.eqb ?x ?y) |- _ =>
+        move/eqP in H; rewrite H => //=
+    | H: is_true (b_e_type_checker _ _ _) |- _ => simpl in H => //=
+    | |- context C [ ?x == ?x ] =>
+        rewrite eq_refl => //=
+    | |- context C [ true && true ] =>
+        unfold andb => //=
+    | H: expand_t ?C ?tb = Some ?x |-
+        context [ expand_t ?C ?tb ] =>
+        rewrite H => //
+    | H: is_true (ct_consumable ?l1 ?l2) |-
+        context [ ct_consumable ?l1 (?l2 ++ ?l3) ] =>
+        rewrite ct_consumable_extend => //
+    | |- context [ ct_consumable [::CTA_some ?t1] [::?t1] ] =>
+        rewrite ct_consumable_self => //
+    | |- context [ ct_consumable [::CTA_some ?t1; CTA_some ?t2] [::?t1; ?t2] ] =>
+        rewrite ct_consumable_self => //
+    | |- context [ ct_consumable [::CTA_some ?t1; CTA_some ?t2; CTA_some ?t3] [::?t1; ?t2; ?t3] ] =>
+        rewrite ct_consumable_self => //
+    | |- context [ ct_consumable ((CTA_some ?t) :: to_ct_list ?l) (?t :: ?l) ] =>
+        rewrite ct_consumable_self => //
+    | |- context C [ct_consumable [::] _] => rewrite ct_consumable_empty => //=
+    | |- context C [ct_consumable [::CTA_any] (_::_)] => rewrite ct_consumable_any_1 => //=
+    | |- context C [ct_consumable (to_ct_list ?l) ?l] => rewrite ct_consumable_self => //=
+    | |- context C [ct_consumable (to_ct_list ?l) (?l ++ ?l2)] => rewrite ct_consumable_extend => //; try by rewrite ct_consumable_self
+    | |- context C [size (to_ct_list _)] => rewrite size_ct_list => //=
+    | |- context C [?x - ?x] => rewrite subnn => //=
+    | |- context C [?x - 0] => rewrite subn0 => //=
+    | |- context C [rev (to_ct_list _)] => rewrite to_ct_list_rev
+    | |- context C [rev nil] => rewrite rev0
+    | |- context C [rev [::?t1]] => replace (rev [::t1]) with [::t1]; last by lias
+    | |- context C [rev [::?t1; ?t2]] => replace (rev [::t1; t2]) with [::t2; t1]; last by lias
+    | |- context C [rev [::?t1; ?t2; ?t3]] => replace (rev [::t1; t2; t3]) with [::t3; t2; t1]; last by lias
+    | |- context C [rev (_ ++ _)] => rewrite rev_cat => //
+    | |- context C [take 0 _] => rewrite take0 => //=
+    | |- context C [take (size ?x) ?x] => rewrite take_size => //=
+    | |- context C [drop 0 _] => rewrite drop0 => //=
+    | |- context C [drop (size ?l) ?l] => rewrite drop_size => //=
+(*    | |- context C [take (drop ?x) ?x] => rewrite drop_size => //=*)
+    | |- context C [_ :: (tc_labels _)] => rewrite - cat1s => //=
+    | |- context C [_ ++ [::]] => rewrite cats0 => //=
+    | |- context C [size (_ ++ _)] => rewrite size_cat => //=
+    | |- context C [size (_ ++ _)%list] => rewrite size_cat => //=
+    | |- context C [?x + ?n - ?n] => replace (x + n - n) with x; last by lias => //=
+    | |- context C [match ?f with | (Tf _ _) => _ end ] => destruct f => //=
+    (*         | |- context C [type_update _ _] => unfold type_update => //=*)
+    | H: match ?expr with | _ => _ end = CT_type _ |- _ => let Hexpr := fresh "Hexpr" in destruct expr eqn: Hexpr => //=
+    | H: match ?expr with | _ => _ end = CT_top_type _ |- _ => let Hexpr := fresh "Hexpr" in destruct expr eqn: Hexpr => //=
+    | H: option_map _ _ = _ |- _ => unfold option_map in H
+    | H: Some _ = Some _ |- _ => inversion H; subst; clear H => //=
+    | H: CT_type _ = CT_type _ |- _ => inversion H; subst; clear H => //=
+    | H: is_true (List.nth_error _ _ == _) |- _ => move/eqP in H; rewrite H => //=
+    | H: is_true (_ == _) |- _ => move/eqP in H
+    | H: ?x = ?x |- _ => clear H
+    | H: _ = _ |- _=> progress (rewrite H; subst => //=)
+    | _ => simplify_goal => //=; (try subst => //=)
+    end.
 
+(*
 Lemma populate_ct_aux_suffix: forall l,
-  ct_suffix l (to_ct_list (populate_ct_aux l)).
+  ct_consumable l (to_ct_list (populate_ct_aux l)).
 Proof with auto_rewrite_cond.
   induction l => //=.
-  unfold ct_suffix => /=.
+  unfold ct_consumable => /=.
   apply/andP; split.
   - repeat rewrite size_map. by lias.
   - unfold ct_list_compat.
-    unfold ct_suffix, ct_list_compat, to_ct_list, populate_ct_aux in IHl...
+    unfold ct_consumable, ct_list_compat, to_ct_list, populate_ct_aux in IHl...
     repeat rewrite size_map.
     rewrite subnn.
     simpl.
@@ -433,27 +415,23 @@ Proof.
   destruct l => //=.
   by apply populate_ct_aux_suffix.
 Qed.
-
+*)
+  
 Lemma type_update_prefix: forall l1 l2 l3 cons prod,
   type_update (CT_type l1) cons prod = CT_type l2 ->
-  type_update (CT_type (l3 ++ l1)) cons prod = CT_type (l3 ++ l2).
+  type_update (CT_type (l1 ++ l3)) cons prod = CT_type (l2 ++ l3).
 Proof.
   unfold type_update, produce, consume.
   move => l1 l2 l3 cons prod H.
   auto_rewrite_cond.
-  unfold to_ct_list.
-  rewrite map_cat.
-  rewrite ct_suffix_extend => //.
-  rewrite take_cat.
-  assert (size cons <= size l1); first by apply ct_suffix_size in Hexpr1; rewrite size_map in Hexpr1.
-  replace (_ < _) with false; last by lias.
-  replace (_ + _ - _ - _) with (size l1 - size cons); last by lias.
-  by rewrite catA.
+  rewrite - catA.
+  repeat f_equal.
+  by rewrite dropl_cat; last by apply ct_consumable_size in Hexpr1.
 Qed.
 
 Lemma type_update_select_prefix: forall l1 l2 l3 ots,
   type_update_select (CT_type l1) ots = CT_type l2 ->
-  type_update_select (CT_type (l3 ++ l1)) ots = CT_type (l3 ++ l2).
+  type_update_select (CT_type (l1 ++ l3)) ots = CT_type (l2 ++ l3).
 Proof.
   unfold type_update_select.
   move => l1 l2 l3 ots.
@@ -462,60 +440,34 @@ Proof.
     move => H.
     by apply type_update_prefix.
   - do 3 destruct l1 => //=.
-    repeat rewrite length_is_size.
-    rewrite size_cat => //=.
-    replace (2 < _) with true; last by lias.
-    repeat (rewrite List.nth_error_app2; try by repeat rewrite length_is_size; lias).
-    repeat rewrite length_is_size.
-    replace (_ + _ - 2 - _) with ((size l1).+1); last by lias.
-    replace (_ + _ - 3 - _) with (size l1); last by lias.
-    replace ((size l1).+3 - 3) with (size l1); last by lias.
-    move => Htc.
-    auto_rewrite_cond.
-    unfold to_ct_list. rewrite map_cat.
-    auto_rewrite_cond.
-    rewrite ct_suffix_extend => //.
-    rewrite take_cat.
-    replace (_ < _) with false => /=; last by lias.
-    replace (_ + _ - _ - _) with ((size l1).+1); last by lias.
-    by repeat f_equal => //=.
+    move => H; remove_bools_options.
+    replace ([::v, v0, v1 & l1 ++ l3]) with ([::v, v0, v1 & l1] ++ l3) => //.
+    by apply type_update_prefix.
 Qed.
     
 Lemma type_update_prefix_top: forall l1 l2 l3 cons prod,
   type_update (CT_type l1) cons prod = CT_top_type l2 ->
-  type_update (CT_type (l3 ++ l1)) cons prod = CT_top_type l2.
+  type_update (CT_type (l1 ++ l3)) cons prod = CT_top_type l2.
 Proof.
   unfold type_update, produce, consume.
   move => l1 l2 l3 cons prod H.
   auto_rewrite_cond.
-  unfold to_ct_list.
-  rewrite map_cat.
-  by rewrite ct_suffix_extend => //.
+  by destruct (ct_consumable (rev cons) (l1 ++ l3)).
 Qed.
 
 Lemma type_update_select_prefix_top: forall l1 l2 l3 ots,
   type_update_select (CT_type l1) ots = CT_top_type l2 ->
-  type_update_select (CT_type (l3 ++ l1)) ots = CT_top_type l2.
+  type_update_select (CT_type (l1 ++ l3)) ots = CT_top_type l2.
 Proof.
   unfold type_update_select.
   move => l1 l2 l3 ots.
   destruct ots as [ts |].
   - do 2 destruct ts => //.
     by apply type_update_prefix_top.
-  - auto_rewrite_cond.
-    unfold to_ct_list.
-    rewrite map_cat.
-    do 3 destruct l1 => //=.
-    repeat rewrite length_is_size.
-    rewrite size_cat => //=.
-    replace (2 < _) with true; last by lias.
-    repeat (rewrite List.nth_error_app2; try by repeat rewrite length_is_size; lias).
-    repeat rewrite length_is_size.
-    replace (_ + _ - 2 - _) with ((size l1).+1); last by lias.
-    replace (_ + _ - 3 - _) with (size l1); last by lias.
-    replace ((size l1).+3 - 3) with (size l1); last by lias.
-    move => ?.
-    by auto_rewrite_cond.
+  - do 3 destruct l1 => //=.
+    move => H; remove_bools_options.
+    replace ([::v, v0, v1 & l1 ++ l3]) with ([::v, v0, v1 & l1] ++ l3) => //.
+    by apply type_update_prefix_top.
 Qed.
 
 Lemma check_rcons: forall es e C ts,
@@ -538,7 +490,7 @@ Proof with auto_rewrite_cond.
 Qed.
   
 Lemma check_single_bot: forall C e,
-  check_single C CT_bot e = CT_bot.
+  check_single C CT_error e = CT_error.
 Proof.
   move => C e.
   by destruct e => //=.
@@ -546,22 +498,13 @@ Qed.
   
 Lemma check_single_weaken: forall C e ts ts2 ts0,
   check_single C (CT_type ts) e = CT_type ts0 ->
-  check_single C (CT_type (ts2 ++ ts)) e = CT_type (ts2 ++ ts0).
+  check_single C (CT_type (ts ++ ts2)) e = CT_type (ts0 ++ ts2).
 Proof with auto_rewrite_cond.
   move => C e.
   move : C.
   induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond; simplify_goal; subst => //=; try by apply type_update_prefix...
-  - unfold type_update in Htc; auto_rewrite_cond.
-    destruct ts => //...
-    rewrite List.app_length => //.
-    (* Numerical disaster *)
-    replace (_ < _) with true => /=; last by lias.
-    repeat (rewrite List.nth_error_app2; last by rewrite length_is_size; lias).
-    replace (_ - 1 - length ts2) with (length ts); last by lias.
-    replace ((length ts).+1 - 1) with (length ts) in match_expr; last by lias.
-    rewrite match_expr if_expr0.
-    apply type_update_prefix.
-    unfold type_update; by auto_rewrite_cond.
+  - replace (v :: l ++ ts2) with ((v :: l) ++ ts2) => //.
+    by apply type_update_prefix.
   - by apply type_update_select_prefix.
   - destruct i => //=.
     simplify_goal.
@@ -570,25 +513,19 @@ Qed.
     
 Lemma check_single_weaken_top: forall C e ts ts2 ts0,
   check_single C (CT_type ts) e = CT_top_type ts0 ->
-  check_single C (CT_type (ts2 ++ ts)) e = CT_top_type ts0.
+  check_single C (CT_type (ts ++ ts2)) e = CT_top_type ts0.
 Proof with auto_rewrite_cond.
   move => C e.
   move : C.
   induction e; move => C ts ts2 ts0 Htc; simpl in Htc => //=; simplify_goal; auto_rewrite_cond => //=; try (destruct i); simplify_goal; try by erewrite type_update_prefix_top; eauto...
-  - erewrite type_update_prefix_top; eauto.
-    destruct ts => //...
-    repeat rewrite List.app_length.
-    replace (_ < _) with true; last by lias.
-    rewrite List.nth_error_app2; last by lias.
-    replace (_ - 1 - length ts2) with (length ts); last by lias.
-    replace ((length ts).+1 - 1) with (length ts) in match_expr; last by lias.
-    by auto_rewrite_cond.
+  - replace (v :: l ++ ts2) with ((v :: l) ++ ts2) => //.
+    by apply type_update_prefix_top.
   - by apply type_update_select_prefix_top.
 Qed.
     
 Lemma check_weaken: forall C es ts ts2 ts0,
   check C es (CT_type ts) = CT_type ts0 ->
-  check C es (CT_type (ts2 ++ ts)) = CT_type (ts2 ++ ts0).
+  check C es (CT_type (ts ++ ts2)) = CT_type (ts0 ++ ts2).
 Proof.
   move => C es.
   move: C.
@@ -604,7 +541,7 @@ Qed.
   
 Lemma check_weaken_top: forall C es ts ts2 ts0,
   check C es (CT_type ts) = CT_top_type ts0 ->
-  check C es (CT_type (ts2 ++ ts)) = CT_top_type ts0.
+  check C es (CT_type (ts ++ ts2)) = CT_top_type ts0.
 Proof.
   move => C es.
   move: C.
@@ -689,29 +626,26 @@ Qed.
   
 Lemma ct_list_compat_trans: forall ts1 ts2 ts,
   ct_list_compat (to_ct_list ts) ts1 ->
-  ct_list_compat (to_ct_list ts) ts2 ->
-  ct_list_compat ts1 ts2.
+  ct_list_compat (to_ct_list ts1) ts2 ->
+  ct_list_compat (to_ct_list ts) ts2.
 Proof.
   move => ts1.
   induction ts1; move => ts2 ts H1 H2; destruct ts2, ts => //=.
   simpl in *.
   move/andP in H1; destruct H1.
   move/andP in H2; destruct H2.
-  apply/andP; split.
-  - destruct c, a => //=.
-    move/eqP in H; move/eqP in H1.
-    subst.
-    by apply/eqP.
+  apply/andP; split; first by resolve_subtyping.
   by eapply IHts1; eauto.
 Qed.
 
-Lemma ct_suffix_take: forall l1 l2 n,
-  ct_suffix l1 l2 ->
+(*
+Lemma ct_consumable_take: forall l1 l2 n,
+  ct_consumable l1 l2 ->
   n <= size l1 ->
-  ct_suffix (take (size l1 - n) l1) (take (size l2 - n) l2).
+  ct_consumable (take (size l1 - n) l1) (take (size l2 - n) l2).
 Proof with auto_rewrite_cond.
   induction l1 using last_ind; case/lastP => [|l2' x'] => //=; intros.
-  - by apply ct_suffix_empty.
+  - by apply ct_consumable_empty.
   - by destruct l1 => //=.
   - rewrite size_rcons in H0.
     destruct n => //=.
@@ -719,16 +653,17 @@ Proof with auto_rewrite_cond.
       by repeat rewrite take_size.
     + repeat rewrite size_rcons.
       repeat rewrite subSS.
-      apply ct_suffix_rcons in H; destruct H.
+      apply ct_consumable_rcons in H; destruct H.
       repeat rewrite - cats1.
       repeat rewrite take_cat.
       destruct n => //=...
       * by destruct (size l1 < size l1), (size l2' < size l2') => //=.
       * assert (size l1 - n.+1 < size l1); first by lias...
-        assert (size l1 <= size l2'); first by unfold ct_suffix in H1; move/andP in H1; destruct H1.
+        assert (size l1 <= size l2'); first by unfold ct_consumable in H1; move/andP in H1; destruct H1.
         assert (size l2' - n.+1 < size l2'); first by lias...
         by apply IHl1.
 Qed.
+
 
 Lemma ct_list_compat_cat: forall l1 l2 l3 l4,
   ct_list_compat l1 l2 ->
@@ -809,7 +744,9 @@ Proof.
   - by eexists.
   - by eapply IHl; eauto.
 Qed.
+ *)
 
+(*
 (*
   We need the mutual ct type to be from ct_list, since CTA_any destroys transitivity. 
 *)
@@ -904,29 +841,29 @@ Proof.
               ** eapply IHts1; by eauto.
 Qed.
 
-Lemma ct_suffix_mutual_compat: forall ts1 ts2 ts_mutual ts,
+Lemma ct_consumable_mutual_compat: forall ts1 ts2 ts_mutual ts,
   ts_mutual = to_ct_list ts ->
-  ct_suffix ts1 ts_mutual ->
-  ct_suffix ts2 ts_mutual ->
+  ct_consumable ts1 ts_mutual ->
+  ct_consumable ts2 ts_mutual ->
   size ts1 <= size ts2 ->
   ct_list_compat (drop (size ts2 - size ts1) ts2) ts1.
 Proof with auto_rewrite_cond.
   move => ts1 ts2 ts_mutual ts Hnany Hsuffix1 Hsuffix2 Hsize.
   subst.
-  unfold ct_suffix in *...
+  unfold ct_consumable in *...
   by eapply ct_compat_mutual; auto_rewrite_cond; eauto.
 Qed.
 
-Lemma ct_suffix_mutual_suffix: forall ts1 ts2 ts_mutual ts,
+Lemma ct_consumable_mutual_suffix: forall ts1 ts2 ts_mutual ts,
   ts_mutual = to_ct_list ts ->
-  ct_suffix ts1 ts_mutual ->
-  ct_suffix ts2 ts_mutual ->
+  ct_consumable ts1 ts_mutual ->
+  ct_consumable ts2 ts_mutual ->
   size ts1 <= size ts2 ->
-  ct_suffix ts1 ts2.
+  ct_consumable ts1 ts2.
 Proof with auto_rewrite_cond.
   move => ts1 ts2 ts_mutual ts Hnany Hsuffix1 Hsuffix2 Hsize.
   subst.
-  unfold ct_suffix in *...
+  unfold ct_consumable in *...
   by eapply ct_compat_mutual; auto_rewrite_cond; eauto.
 Qed.
 
@@ -944,14 +881,15 @@ Proof.
   move => a b.
   destruct (a-b<a) eqn:H; by lias.
 Qed.
-  
+*)  
+(*
 Lemma type_update_agree_suffix: forall ts cons prod ts2 topt,
   c_types_agree (type_update (CT_type ts) cons prod) ts2 ->
-  ct_suffix topt (to_ct_list ts) ->
+  ct_consumable (to_ct_list topt) ts ->
   c_types_agree (type_update (CT_top_type topt) cons prod) ts2.
 Proof with auto_rewrite_cond.
   move => ts cons prod ts2 topt Hct Hsuffix.
-  unfold type_update, c_types_agree, produce, consume, ct_suffix, to_ct_list in * => /=...
+  unfold type_update, c_types_agree, produce, consume, ct_consumable, to_ct_list in * => /=...
   destruct (size cons <= size topt) eqn:Hsize => //=.
   - remember Hsize as Hsize_ct; clear HeqHsize_ct.
     apply ct_compat_mutual with (ts := ts) (ts_mutual := to_ct_list ts) in Hsize; eauto...
@@ -1010,18 +948,18 @@ Proof with auto_rewrite_cond.
     by apply ct_list_compat_self.
 Qed.
 
-Lemma ct_suffix_any_take_2: forall ts,
+Lemma ct_consumable_any_take_2: forall ts,
   2 < size ts ->
-  ct_suffix [::CTA_any] (to_ct_list (take (size ts - 2) ts)).
+  ct_consumable [::CTA_any] (to_ct_list (take (size ts - 2) ts)).
 Proof.
   move => ts H.
-  apply ct_suffix_any_1.
+  apply ct_consumable_any_1.
   rewrite size_ct_list size_take sub_if.
   by lias.
 Qed.
 
-Lemma ct_suffix_compat_index: forall l1 l2 n t1 t2,
-  ct_suffix l1 l2 ->
+Lemma ct_consumable_compat_index: forall l1 l2 n t1 t2,
+  ct_consumable l1 l2 ->
   n >= 1 ->
   n <= size l1 ->
   List.nth_error l1 (length l1 - n) = Some t1 ->
@@ -1029,7 +967,7 @@ Lemma ct_suffix_compat_index: forall l1 l2 n t1 t2,
   ct_compat t1 t2.
 Proof.
   move => l1 l2 n t1 t2 Hsuf Hn Hsize Hn1 Hn2.
-  unfold ct_suffix in Hsuf.
+  unfold ct_consumable in Hsuf.
   move/andP in Hsuf; destruct Hsuf as [Hsize2 Hcompat].
   rewrite length_is_size in Hn1.
   rewrite length_is_size in Hn2.
@@ -1038,10 +976,10 @@ Proof.
   apply ct_list_compat_drop_shift with (a := size l2 - n) (b := size l1 - n) (c1 := t2) (c2 := t1) in Hcompat; by [rewrite Hn1 Hn2 in Hcompat; apply ct_compat_symmetry | lias | lias | lias].
 Qed.
 
-Lemma ct_suffix_append_compat: forall l1 l2 l3 l4,
-  ct_suffix l1 l2 ->
+Lemma ct_consumable_append_compat: forall l1 l2 l3 l4,
+  ct_consumable l1 l2 ->
   ct_list_compat l3 l4 ->
-  ct_suffix (l1 ++ l3) (l2 ++ l4).
+  ct_consumable (l1 ++ l3) (l2 ++ l4).
 Proof with auto_rewrite_cond.
   move => l1 l2 l3.
   move : l1 l2.
@@ -1051,7 +989,7 @@ Proof with auto_rewrite_cond.
   - apply ct_list_compat_rcons in H.
     destruct H.
     repeat rewrite - rcons_cat.
-    apply ct_suffix_rcons; split => //.
+    apply ct_consumable_rcons; split => //.
     by apply IHl3.
 Qed.
   
@@ -1069,13 +1007,13 @@ Qed.
 
 Lemma select_return_top_suffix: forall c2 c3 ts topt topts,
   select_return_top topt c2 c3 = CT_top_type topts ->
-  ct_suffix topt (to_ct_list ts) ->  
+  ct_consumable topt (to_ct_list ts) ->  
   List.nth_error topt (length topt - 2) = Some c2 ->
   List.nth_error topt (length topt - 3) = Some c3 ->
   List.nth_error ts (length ts - 2) = List.nth_error ts (length ts - 3) ->
   2 < length topt ->
   2 < size ts ->
-  ct_suffix topts (to_ct_list (take (size ts - 2) ts)).
+  ct_consumable topts (to_ct_list (take (size ts - 2) ts)).
 Proof with auto_rewrite_cond.
   move => c2 c3 ts topt topts Hselect Hsuffix Hn2 Hn3 Hts3 Hsize1 Hsize2.
   unfold select_return_top in Hselect.
@@ -1087,13 +1025,13 @@ Proof with auto_rewrite_cond.
   apply nth_to_ct_list in Hts3.
   replace (length ts) with (length (to_ct_list ts)) in Hts2; last by repeat rewrite length_is_size; unfold to_ct_list; rewrite size_map.
   replace (length ts) with (length (to_ct_list ts)) in Hts3; last by repeat rewrite length_is_size; unfold to_ct_list; rewrite size_map.
-  eapply ct_suffix_compat_index in Hts2; eauto.
-  eapply ct_suffix_compat_index in Hts3; eauto.
-  assert (ct_suffix (take (size topt - 3) topt) (take (size (to_ct_list ts) - 3) (to_ct_list ts)))as Hsuffixm3; first by apply ct_suffix_take.
+  eapply ct_consumable_compat_index in Hts2; eauto.
+  eapply ct_consumable_compat_index in Hts3; eauto.
+  assert (ct_consumable (take (size topt - 3) topt) (take (size (to_ct_list ts) - 3) (to_ct_list ts)))as Hsuffixm3; first by apply ct_consumable_take.
   replace (size ts - 2) with ((size ts - 3).+1); last by lias.
   rewrite -> take_nth with (x0 := v); last by lias.
   replace (size (to_ct_list ts)) with (size ts) in Hsuffixm3; last by unfold to_ct_list; rewrite size_map.
-  destruct c2, c3 => //=; auto_rewrite_cond; inversion Hselect; subst; clear Hselect; repeat rewrite length_is_size; unfold to_ct_list; rewrite map_rcons; rewrite cats1; rewrite ct_suffix_rcons; rewrite map_take; split => //; by unfold ct_compat.
+  destruct c2, c3 => //=; auto_rewrite_cond; inversion Hselect; subst; clear Hselect; repeat rewrite length_is_size; unfold to_ct_list; rewrite map_rcons; rewrite cats1; rewrite ct_consumable_rcons; rewrite map_take; split => //; by unfold ct_compat.
 Qed.
 
 (*
@@ -1101,7 +1039,7 @@ Qed.
  *)
 Lemma type_update_select_agree: forall topt ts ot ts2,
   c_types_agree (type_update_select (CT_type ts) ot) ts2 ->
-  ct_suffix topt (to_ct_list ts) ->
+  ct_consumable topt (to_ct_list ts) ->
   c_types_agree (type_update_select (CT_top_type topt) ot) ts2.
 Proof with auto_rewrite_cond.
   move => topt ts ot ts2 Htype Hsuffix.
@@ -1110,20 +1048,20 @@ Proof with auto_rewrite_cond.
   auto_rewrite_cond; try (by do 2 destruct l => //; by eapply type_update_agree_suffix; eauto).
   (* The Wasm 1.0 select -- unspecified type *)
   rewrite length_is_size in if_expr.
-  destruct topt => //=; first by apply ct_suffix_any_take_2...
+  destruct topt => //=; first by apply ct_consumable_any_take_2...
   destruct topt => //=...
   - (* 1 *)
-    eapply ct_suffix_mutual_compat with (ts1 := [::c]) in if_expr0...
-    destruct c => //=; auto_rewrite_cond; by apply ct_suffix_any_take_2...
+    eapply ct_consumable_mutual_compat with (ts1 := [::c]) in if_expr0...
+    destruct c => //=; auto_rewrite_cond; by apply ct_consumable_any_take_2...
   - destruct topt => //=...
     + (* 2 *)
-      eapply ct_suffix_mutual_compat with (ts1 := [::c; c0]) in if_expr0...
-      assert (ct_suffix [::CTA_some (T_num T_i32)] [::c; c0] = true) as Hsuffix2; first destruct c0 => //=...
-      destruct c => //; auto_rewrite_cond; first apply ct_suffix_any_1.
+      eapply ct_consumable_mutual_compat with (ts1 := [::c; c0]) in if_expr0...
+      assert (ct_consumable [::CTA_some (T_num T_i32)] [::c; c0] = true) as Hsuffix2; first destruct c0 => //=...
+      destruct c => //; auto_rewrite_cond; first apply ct_consumable_any_1.
       { rewrite size_map size_takel; by lias. }
 
       assert (ct_compat (CTA_some v) (CTA_some v0)) as Heq.
-      { eapply ct_suffix_compat_index with (n := 2); try apply Hsuffix => //; try by lias.
+      { eapply ct_consumable_compat_index with (n := 2); try apply Hsuffix => //; try by lias.
         apply nth_to_ct_list.
         uapply match_expr0.
         do 2 f_equal.
@@ -1131,7 +1069,7 @@ Proof with auto_rewrite_cond.
       }
       simpl in Heq; move/eqP in Heq; subst v0.
       rewrite H; auto_rewrite_cond.
-      unfold ct_suffix.
+      unfold ct_consumable.
       
       assert (ts = take (size ts - 3) ts ++ drop (size ts - 3) ts) as Heq; first by rewrite cat_take_drop.
       remember (drop (size ts-3) ts) as tail.
@@ -1177,7 +1115,7 @@ Proof with auto_rewrite_cond.
         assert (nth (CTA_some v1) (to_ct_list ts) (size ts - 3) = CTA_some v0) as Hts3ssr.
         { unfold to_ct_list. rewrite -> nth_map with (x1 := v1); last by lias. by rewrite match_expr1. }
         apply ssr_nth_error in Hts3ssr; last by unfold to_ct_list; rewrite size_map; lias.
-        eapply ct_suffix_compat_index with (l2 := to_ct_list ts) in Hl3; eauto; last by rewrite length_is_size; unfold to_ct_list; rewrite size_map; apply Hts3ssr.
+        eapply ct_consumable_compat_index with (l2 := to_ct_list ts) in Hl3; eauto; last by rewrite length_is_size; unfold to_ct_list; rewrite size_map; apply Hts3ssr.
 
         replace (length topt) with (length [::c0, c1 & topt] - 2) in Hl2; last by lias.
         apply nth_error_nth' with (x0 := v1) in match_expr0.
@@ -1185,8 +1123,8 @@ Proof with auto_rewrite_cond.
         assert (nth (CTA_some v1) (to_ct_list ts) (size ts - 2) = CTA_some v0) as Hts2ssr.
         { unfold to_ct_list. rewrite -> nth_map with (x1 := v1); last by lias. by rewrite match_expr0. }
         apply ssr_nth_error in Hts2ssr; last by unfold to_ct_list; rewrite size_map; lias.
-        eapply ct_suffix_compat_index with (l2 := to_ct_list ts) in Hl2; eauto.
-        2: { by apply ct_suffix_prefix with (l1 := [::c]). }
+        eapply ct_consumable_compat_index with (l2 := to_ct_list ts) in Hl2; eauto.
+        2: { by apply ct_consumable_prefix with (l1 := [::c]). }
         2: { rewrite length_is_size; unfold to_ct_list; rewrite size_map; apply Hts2ssr. }
         simpl in *.
         move/eqP in Hl3; move/eqP in Hl2.
@@ -1197,23 +1135,45 @@ Proof with auto_rewrite_cond.
       destruct Htopts as [topts Htopts].
       rewrite Htopts.
       unfold type_update, produce...
-      replace (ct_suffix _ _) with true...
+      replace (ct_consumable _ _) with true...
       * eapply select_return_top_suffix; eauto; last by rewrite match_expr0 match_expr1.
         simpl.
         by replace (_-_) with (length topt); last by lias.
-      * rewrite ct_suffix_any_grow => //.
-        by eapply ct_suffix_mutual_suffix; eauto.
+      * rewrite ct_consumable_any_grow => //.
+        by eapply ct_consumable_mutual_suffix; eauto.
 Qed.
+*)
+Lemma ct_consumable_subtyping : forall ts1 ts2 ts,
+  ct_consumable (to_ct_list ts1) ts ->
+  ts1 <ts: ts2 ->
+  ct_consumable (to_ct_list ts2) ts.
+Admitted.
 
-Lemma c_types_agree_suffix_single: forall l C ts ts2 e,
+Lemma type_update_agree_prefix: forall ts cons prod ts2 topt,
+  c_types_agree (type_update (CT_type ts) cons prod) ts2 ->
+  ct_consumable (to_ct_list (take (size topt) ts)) topt ->
+  c_types_agree (type_update (CT_top_type topt) cons prod) ts2.
+Admitted.
+  
+Lemma c_types_agree_prefix_single: forall l C ts ts2 e,
   c_types_agree (check_single C (CT_type ts) e) ts2 ->
-  ct_suffix l (to_ct_list ts) ->
+  ct_consumable (to_ct_list (take (size l) ts)) l ->
   c_types_agree (check_single C (CT_top_type l) e) ts2.
 Proof with auto_rewrite_cond.
   move => l C ts ts2 e.
   move: l C ts ts2.
-  induction e; move => topt C ts ts2 H Hsuffix; simpl in H => //=; auto_rewrite_cond; simplify_goal; (try destruct i); (try destruct c); (try by eapply type_update_agree_suffix; eauto) => //=...
+  induction e; move => topt C ts ts2 H Hsuffix; simpl in H => //=; auto_rewrite_cond; simplify_goal; (try destruct i); (try destruct c); (try by eapply type_update_agree_prefix; eauto); (try by eapply ct_consumable_subtyping; eauto; resolve_subtyping) => //=...
   (* Ref_is_null *)
+  - destruct ts => //.
+    auto_rewrite_cond.
+    destruct topt, ts2 => //; unfold type_update in H; auto_rewrite_cond; rewrite rev_cons in H; simpl in *; auto_rewrite_cond.
+    + unfold ct_consumable.
+      by auto_rewrite_cond.
+    + unfold ct_consumable in Hsuffix...
+      replace (is_ref_t v0) with true; last first.
+      { destruct v, v0 => //.
+        unfold is_ref_t.
+        Locate is_ref_t.
   - specialize (type_update_agree_suffix H Hsuffix) as Hsuffix'.
     destruct topt => //=.
     + unfold type_update in H...
@@ -1223,7 +1183,7 @@ Proof with auto_rewrite_cond.
       { destruct c0...
         replace (length topt) with (length (c :: topt) - 1) in Hnth; last by lias.
         assert (ct_compat (CTA_some v0) (CTA_some v)) as Hcompat.
-        { eapply ct_suffix_compat_index; try apply Hnth; eauto.
+        { eapply ct_consumable_compat_index; try apply Hnth; eauto.
           apply nth_to_ct_list.
           uapply match_expr.
           do 2 f_equal.
@@ -1236,7 +1196,7 @@ Proof with auto_rewrite_cond.
   - simplify_goal.
     by eapply type_update_agree_suffix; eauto.
 Qed.
-
+(*
 Lemma c_types_agree_weakening: forall C es ts ts' ts2,
   c_types_agree (check C es (CT_type ts)) ts2 ->
   c_types_agree (check C es (CT_type (ts' ++ ts))) (ts' ++ ts2).
@@ -1247,7 +1207,7 @@ Proof.
   - erewrite check_weaken_top; eauto.
     unfold to_ct_list.
     rewrite map_cat.
-    by rewrite ct_suffix_extend.
+    by rewrite ct_consumable_extend.
   - move/eqP in H. subst.
     erewrite check_weaken; by eauto.
 Qed.
@@ -1265,7 +1225,7 @@ Proof.
   - erewrite check_weaken_top; eauto.
     unfold to_ct_list.
     rewrite map_cat.
-    by rewrite ct_suffix_extend.
+    by rewrite ct_consumable_extend.
   - move/eqP in H. subst.
     erewrite check_weaken; by eauto.
 Qed.
@@ -1333,8 +1293,8 @@ Lemma consume_top_not_bot: forall cts tn,
 Proof with auto_rewrite_cond.
   move => cts tn Hsize H.
   unfold consume in H...
-  - unfold ct_suffix in *...
-  - unfold ct_suffix in *...
+  - unfold ct_consumable in *...
+  - unfold ct_consumable in *...
     assert (size tn = size cts) as Hsizeeq; first by lias.
     rewrite -> Hsizeeq, subnn, drop0 in *.
     by apply ct_list_compat_symmetry.
@@ -1347,10 +1307,10 @@ Lemma consume_top_not_bot_short: forall cts tn,
 Proof with auto_rewrite_cond. 
   move => cts tn Hsize H.
   unfold consume in H...
-  - unfold ct_suffix in *...
+  - unfold ct_consumable in *...
     assert (size tn = size cts) as Hsizeeq; first by lias.
     by rewrite -> Hsizeeq, subnn, drop0 in *.
-  - unfold ct_suffix in *...
+  - unfold ct_consumable in *...
     by apply ct_list_compat_symmetry.
 Qed.
 
@@ -1360,7 +1320,7 @@ Lemma consume_type_not_bot: forall cts tn,
 Proof with auto_rewrite_cond.
   move => cts tn H.
   unfold consume in H...
-  unfold ct_suffix in *...
+  unfold ct_consumable in *...
 Qed.
 
 Lemma type_update_type_agree: forall tm tn' tm' cts,
@@ -1370,7 +1330,7 @@ Proof with auto_rewrite_cond.
   move => tm tn' tm' cts H.
   exists (take (size tm - size tm') tm).
   destruct cts as [ctst | cts | ] => //=...
-  - unfold type_update in *; auto_rewrite_cond; unfold ct_suffix in * => //=...
+  - unfold type_update in *; auto_rewrite_cond; unfold ct_consumable in * => //=...
     + rewrite -> size_take, sub_if in *.
       remember (size tm - size tm') as x.
       remember (size ctst - size tn') as y.
@@ -1427,7 +1387,7 @@ Proof with auto_rewrite_cond.
       replace (_<_) with false; last by lias.
       by replace (size tm - _ + _ - _) with y; last by lias.
   - unfold type_update in *...
-    unfold ct_suffix in *...
+    unfold ct_consumable in *...
     unfold to_ct_list in H0; rewrite - map_drop in H0.
     apply ct_list_compat_to_ct in H0.
     remember (size cts - size tn') as x.
@@ -1471,8 +1431,8 @@ Proof with auto_rewrite_cond.
   by destruct Heqcts'.
 Qed.
 
-Lemma ct_suffix_1_impl: forall tm,
-  ct_suffix [::CTA_any] (to_ct_list tm) ->
+Lemma ct_consumable_1_impl: forall tm,
+  ct_consumable [::CTA_any] (to_ct_list tm) ->
   exists v tm', tm = tm' ++ [::v].
 Proof.
   move => tm.
@@ -1544,20 +1504,25 @@ Ltac resolve_update_agree :=
     (try by econstructor; eauto);
     (try by do 2 econstructor; eauto)
   end.
-
+ *)
+(*
 Lemma type_update_ref_is_null_bet: forall C cts tm,
   c_types_agree (type_update_ref_is_null cts) tm ->
-  exists tn, c_types_agree cts tn /\ be_typing C [::BI_ref_is_null] (Tf tn tm).
-(*
+  exists tn, c_types_agree cts tn /\ be_typing C [::BI_ref_is_null] (Tf (rev tn) (rev tm)).
 Proof.
   move => C cts tm Hct.
   unfold type_update_ref_is_null in Hct.
   destruct cts as [ts | ts | ].
   - destruct ts => //.
-    unfold ct_suffix in Hct; auto_rewrite_cond.
-    exists (take (size tm - 1) tm); split; first by apply ct_suffix_empty.
-    rewrite <- (cat_take_drop (size tm - 1) tm) at 3.
-    apply bet_weakening_empty_1.
+    auto_rewrite_cond.
+    exists (T_bot :: (drop 1 tm)); split => //; auto_rewrite_cond.
+    rewrite rev_cons -cats1 rev_drop.
+    rewrite <- (cat_take_drop (size tm - 1) (rev tm)) at 2.
+    apply bet_weakening.
+    rewrite - rev_take.
+    remember (take 1 tm) as ts.
+    unfold ct_consumable in Hct; remove_bools_options.
+    eapply bet_subtyping with (t1s := [::T_ref T_funcref]); first apply bet_ref_is_null.
     unfold to_ct_list in H0; rewrite - map_drop in H0.
     fold (to_ct_list (drop (size tm - 1) tm)) in H0.
     replace ([::CTA_some (T_num T_i32)]) with (to_ct_list [::T_num T_i32]) in H0 => //.
@@ -1566,12 +1531,11 @@ Proof.
     apply bet_ref_is_null.
     unfold ct_list_compat in H0.
     + move => Hct.
-      apply ct_suffix_1_impl in Hct as [t [ts ->]].
-      exists (ts ++ [::T_ref T_funcref]); split; first by apply ct_suffix_empty.
+      apply ct_consumable_1_impl in Hct as [t [ts ->]].
+      exists (ts ++ [::T_ref T_funcref]); split; first by apply ct_consumable_empty.
       apply bet_weakening.
       eapply bet_subtyping; first by constructor.
       resolve_subtyping.
-*)
 Admitted.
 
 Lemma type_update_select_agree_bet: forall C cts ots tm,
@@ -1585,9 +1549,9 @@ Proof with auto_rewrite_cond.
     rewrite length_is_size.
     case/lastP : ts => [|ts x1] => //=.
     + move => Hct.
-      apply ct_suffix_1_impl in Hct.
+      apply ct_consumable_1_impl in Hct.
       destruct Hct as [v [tm' ?]]; subst.
-      exists (tm' ++ [::T_bot; T_bot; T_num T_i32]); split; first by apply ct_suffix_empty.
+      exists (tm' ++ [::T_bot; T_bot; T_num T_i32]); split; first by apply ct_consumable_empty.
       apply bet_weakening.
       apply bet_select_None.
     + rewrite size_rcons.
@@ -1596,18 +1560,18 @@ Proof with auto_rewrite_cond.
         unfold type_update, produce, consume in Hct.
         destruct x1; simpl in Hct.
         {
-          apply ct_suffix_1_impl in Hct.
+          apply ct_consumable_1_impl in Hct.
           destruct Hct as [v [tm' ?]]; subst.
-          exists (tm' ++ [::v; v; T_i32]); split; first by apply ct_suffix_any_1; rewrite size_ct_list size_cat; lias.
+          exists (tm' ++ [::v; v; T_i32]); split; first by apply ct_consumable_any_1; rewrite size_ct_list size_cat; lias.
           apply bet_weakening.
           by apply bet_select.
         }
         { destruct v => //=.
           simpl in Hct.
-          apply ct_suffix_1_impl in Hct.
+          apply ct_consumable_1_impl in Hct.
           destruct Hct as [v [tm' ?]]; subst.
           exists (tm' ++ [::v; v; T_i32]); split.
-          - unfold ct_suffix...
+          - unfold ct_consumable...
             apply/andP; split; first by lias.
             unfold to_ct_list.
             rewrite map_cat drop_cat size_map.
@@ -1620,7 +1584,7 @@ Proof with auto_rewrite_cond.
         case/lastP : l => [|l x3] => //=.
         {
           move => H...
-          unfold ct_suffix in *...
+          unfold ct_consumable in *...
           clear H1.
           move : H H0.
           case/lastP : tm => [|tm x'] => //=.
@@ -1667,22 +1631,22 @@ Proof with auto_rewrite_cond.
             replace (size l + size _ - 3) with (size l) in Hct; last by simpl; lias.
             rewrite take_cat subnn take0 cats0 take_size in Hct.
             replace (_<_) with false in Hct; last by lias.
-            unfold ct_suffix in if_expr...
+            unfold ct_consumable in if_expr...
             replace (size l + 3 - 3) with (size l) in H0; last by lias.
             rewrite drop_cat subnn drop0 in H0.
             replace (_<_) with false in H0; last by lias.
             auto_rewrite_cond.
             move : Hct.
             case/lastP: tm => [|tm x] => //=; move => Hct.
-            + destruct c, c0; unfold c_types_agree, ct_suffix; auto_rewrite_cond; by destruct l => //=.
+            + destruct c, c0; unfold c_types_agree, ct_consumable; auto_rewrite_cond; by destruct l => //=.
             + replace (_+_-_) with (size l) in Hct; last by lias.
               rewrite take_cat subnn take0 cats0 in Hct.
               replace (_<_) with false in Hct; last by lias.
               exists (tm ++ [::x; x; T_i32]).
               repeat rewrite cats1 in Hct.
               split; last by rewrite - cats1; apply bet_weakening; apply bet_select.
-              destruct c , c0 => //=; auto_rewrite_cond; unfold to_ct_list in Hct; rewrite map_rcons in Hct; (try rewrite cats1 in Hct); apply ct_suffix_rcons in Hct; destruct Hct; unfold to_ct_list; rewrite map_cat; apply ct_suffix_append_compat => //=...
-          - unfold ct_suffix in *; destruct l; auto_rewrite_cond; last by lias.
+              destruct c , c0 => //=; auto_rewrite_cond; unfold to_ct_list in Hct; rewrite map_rcons in Hct; (try rewrite cats1 in Hct); apply ct_consumable_rcons in Hct; destruct Hct; unfold to_ct_list; rewrite map_cat; apply ct_consumable_append_compat => //=...
+          - unfold ct_consumable in *; destruct l; auto_rewrite_cond; last by lias.
             replace (ct_compat c0 CTA_any) with true in if_expr; last by destruct c0.
             replace (ct_compat c CTA_any) with true in if_expr; last by destruct c.
             simpl in if_expr.
@@ -1726,7 +1690,7 @@ Proof with auto_rewrite_cond.
     repeat rewrite - cats1 in if_expr0.
     repeat rewrite - catA in if_expr0.
     simpl in if_expr0.
-    unfold ct_suffix in if_expr0...
+    unfold ct_consumable in if_expr0...
     unfold to_ct_list in H1.
     rewrite map_cat in H1...
     rewrite drop_cat size_map in H1.
@@ -1736,9 +1700,9 @@ Proof with auto_rewrite_cond.
     apply bet_select.
 Qed.
 *)
-    
+(*
 Lemma tc_to_bet_br: forall cts l,
-  consume cts (to_ct_list l) <> CT_bot ->
+  consume cts (to_ct_list l) <> CT_error ->
   exists tn, c_types_agree cts (tn ++ l).
 Proof with auto_rewrite_cond.
   move => cts l Hconsume.
@@ -1747,12 +1711,12 @@ Proof with auto_rewrite_cond.
     + apply consume_top_not_bot_short in Hconsume; last by rewrite size_ct_list.
       rewrite size_ct_list in Hconsume.
       exists [::] => //=.
-      unfold ct_suffix...
+      unfold ct_consumable...
       by apply ct_list_compat_symmetry.
     + apply consume_top_not_bot in Hconsume; last by rewrite size_ct_list; lias.
       rewrite size_ct_list in Hconsume.
       exists (populate_ct_aux (take (size ctst - size l) ctst))...
-      unfold ct_suffix...
+      unfold ct_consumable...
       unfold populate_ct_aux; rewrite size_map size_take sub_if.
       apply/andP; split; first by lias.
       replace (_ - _ + _ - _) with 0; last by lias.
@@ -1896,7 +1860,7 @@ Proof with auto_rewrite_cond.
     (* Drop *)
     + destruct cts => //=; clear if_expr.
       * move: Hct2. case/lastP : l => [| l x] => //=; move => Hsuf.
-        { exists (tm ++ [::T_num T_i32]); split; first by apply ct_suffix_empty.
+        { exists (tm ++ [::T_num T_i32]); split; first by apply ct_consumable_empty.
           apply bet_weakening_empty_2.
           by apply bet_drop.
         }
@@ -1905,9 +1869,9 @@ Proof with auto_rewrite_cond.
           rewrite cats1.
           unfold to_ct_list.
           rewrite map_rcons.
-          apply ct_suffix_rcons.
+          apply ct_consumable_rcons.
           split; first by destruct x => //=.
-          rewrite ct_suffix_any_1 in Hsuf; last by rewrite size_rcons.
+          rewrite ct_consumable_any_1 in Hsuf; last by rewrite size_rcons.
           rewrite - cats1 in Hsuf.
           simpl in Hsuf.
           rewrite size_cat take_cat in Hsuf.
@@ -2088,6 +2052,7 @@ Proof.
   move => [H1 _].
   by eapply H1; eauto.
 Qed.
+*)
 
 Lemma b_e_type_checker_reflects_typing:
   forall C bes tf,
@@ -2098,27 +2063,28 @@ Proof with auto_rewrite_cond.
   destruct (b_e_type_checker C bes (Tf tn tm)) eqn: Htc_bool.
   - apply ReflectT.
     unfold b_e_type_checker in Htc_bool.
-    fold (check C bes (CT_type tn)) in Htc_bool.
-    eapply tc_to_bet_list in Htc_bool; eauto.
-    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.
+    fold (check C bes (CT_type (rev tn))) in Htc_bool.
+ (*   eapply tc_to_bet_list in Htc_bool; eauto.
+    by destruct Htc_bool as [x [Hagree Hbet]]; auto_rewrite_cond.*)
+    admit.
   - apply ReflectF.
     move => Hbet.
     assert (b_e_type_checker C bes (Tf tn tm)) as H; (try by rewrite H in Htc_bool); clear Htc_bool.
-    induction Hbet; subst => //=; unfold type_update => //=; try destruct t, op; try by inversion H...
+    induction Hbet => //=; unfold type_update => /=; (try destruct t, op); (try by inversion H => //); (try auto_rewrite_cond); try by resolve_subtyping.
     (* Ref_func *)
     + (* inP is slightly stupid *)
       move/(@inP u32_eqType) in H0.
       by rewrite H0.
-    (* Block? *)
-    + rewrite H IHHbet1 IHHbet2 => /=.
-      by auto_rewrite_cond.
     (* Br_table *)
     + apply same_lab_h_condition in H.
       apply same_lab_h_same_lab in H; last by destruct ins.
       rewrite H.
-      by auto_rewrite_cond.
-    + destruct tf as [t1 t2] => //=...
-    + unfold type_update => //=...
+      auto_rewrite_cond.
+      simplify_lists.
+      rewrite catA ct_consumable_extend; by auto_rewrite_cond.
+    (* Call *)
+    + destruct tf as [t1 t2] => //=; unfold type_update.
+      by auto_rewrite_cond; resolve_subtyping.
     + rewrite List.fold_left_app => //=.
       unfold c_types_agree in IHHbet1.
       destruct (List.fold_left _ es _) eqn:Htc => //=.

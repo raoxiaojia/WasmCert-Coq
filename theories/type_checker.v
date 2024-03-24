@@ -97,7 +97,7 @@ Definition select_return (vt1 vt2 : value_type) : checker_type :=
 
 Definition type_update_select (t : checker_type) (ots: option (list value_type)) : checker_type :=
   match ots with
-  | Some [::vt] => type_update t (to_ct_list [:: T_num T_i32; vt; vt]) (CT_type [:: vt])
+  | Some [::vt] => type_update t (to_ct_list [:: vt; vt; T_num T_i32]) (CT_type [:: vt])
   | Some _ => CT_error
   | None =>
       match t with
@@ -155,7 +155,7 @@ Definition same_lab (iss : seq tableidx) (lab_c : seq (seq value_type)) : option
 Definition c_types_agree (ct : checker_type) (ts': seq value_type) : bool :=
   match ct with
   | CT_type ts => ts <ts: ts'
-  | CT_top_type ts => ct_consumable (to_ct_list ts') (take (size ts) ts')
+  | CT_top_type ts => ct_consumable (to_ct_list (take (size ts) ts')) ts
   | CT_error => false
   end.
 
@@ -183,7 +183,7 @@ Definition type_update_ref_is_null (ct : checker_type) : checker_type :=
 Fixpoint check_single (C : t_context) (ts : checker_type) (be : basic_instruction) : checker_type :=
   let b_e_type_checker (C : t_context) (es : list basic_instruction) (tf : function_type) : bool :=
     let: (Tf tn tm) := tf in
-      c_types_agree (List.fold_left (check_single C) es (CT_type tn)) tm 
+      c_types_agree (List.fold_left (check_single C) es (CT_type (rev tn))) (rev tm)
 in
   if ts == CT_error then CT_error
   else
