@@ -1142,17 +1142,49 @@ Proof with auto_rewrite_cond.
       * rewrite ct_consumable_any_grow => //.
         by eapply ct_consumable_mutual_suffix; eauto.
 Qed.
-*)
+ *)
+
+Lemma ct_list_compat_subtyping : forall ts1 ts2 ts,
+  ct_list_compat (to_ct_list ts1) ts ->
+  (ts1 <ts: ts2) ->
+  ct_list_compat (to_ct_list ts2) ts.
+Proof.
+  move => ts1 ts2 ts Hcompat Hsub.
+  unfold ct_list_compat in *.
+  apply all2_spec.
+  - apply all2_size in Hcompat.
+    rewrite -> size_ct_list in *.
+    apply values_subtyping_size in Hsub.
+    by rewrite - Hsub.
+  - move => n ct t Hnth1 Hnth2.
+    eapply all2_nth_impl' in Hcompat as [x [Hnth3 Hcompat]]; eauto.
+    Search List.nth_error map.
+    apply nth_error_map in Hnth1 as [vt [Hnth1 ?]]; subst.
+    apply nth_error_map in Hnth3 as [vt' [Hnth3 ?]]; subst.
+    eapply all2_projection in Hsub; (try by apply Hnth1); (try by apply Hnth3).
+    simpl in *.
+    by resolve_subtyping.
+Qed.
+
 Lemma ct_consumable_subtyping : forall ts1 ts2 ts,
   ct_consumable (to_ct_list ts1) ts ->
-  ts1 <ts: ts2 ->
+  (ts1 <ts: ts2) ->
   ct_consumable (to_ct_list ts2) ts.
-Admitted.
-
-Lemma type_update_agree_prefix: forall ts cons prod ts2 topt,
-  c_types_agree (type_update (CT_type ts) cons prod) ts2 ->
+Proof.
+  move => ts1 ts2 ts Hconsume Hsub.
+  unfold ct_consumable in *; auto_rewrite_cond.
+  replace (size ts2) with (size ts1); last by apply values_subtyping_size in Hsub.
+  apply/andP; split => //.
+  by eapply ct_list_compat_subtyping; eauto.
+Qed.
+    
+Lemma type_update_agree_prefix: forall ts ts_cons ts_prod ts2 topt,
+  c_types_agree (type_update (CT_type ts) ts_cons ts_prod) ts2 ->
   ct_consumable (to_ct_list (take (size topt) ts)) topt ->
-  c_types_agree (type_update (CT_top_type topt) cons prod) ts2.
+  c_types_agree (type_update (CT_top_type topt) ts_cons ts_prod) ts2.
+Proof.
+  move => ts ts_cons ts_prod ts2 topt Hagree Hconsumable.
+  unfold type_update, c_types_agree in * => /=; auto_rewrite_cond.
 Admitted.
   
 Lemma c_types_agree_prefix_single: forall l C ts ts2 e,
@@ -1169,33 +1201,19 @@ Proof with auto_rewrite_cond.
     destruct topt, ts2 => //; unfold type_update in H; auto_rewrite_cond; rewrite rev_cons in H; simpl in *; auto_rewrite_cond.
     + unfold ct_consumable.
       by auto_rewrite_cond.
-    + unfold ct_consumable in Hsuffix...
-      replace (is_ref_t v0) with true; last first.
-      { destruct v, v0 => //.
-        unfold is_ref_t.
-        Locate is_ref_t.
-  - specialize (type_update_agree_suffix H Hsuffix) as Hsuffix'.
-    destruct topt => //=.
-    + unfold type_update in H...
-      replace (_.+1 - 1) with (length topt); last by lias.
-      destruct (List.nth_error (c :: topt) (length topt)) eqn:Hnth; last first.
-      { apply List.nth_error_None in Hnth; simpl in Hnth; by lias. }
-      { destruct c0...
-        replace (length topt) with (length (c :: topt) - 1) in Hnth; last by lias.
-        assert (ct_compat (CTA_some v0) (CTA_some v)) as Hcompat.
-        { eapply ct_consumable_compat_index; try apply Hnth; eauto.
-          apply nth_to_ct_list.
-          uapply match_expr.
-          do 2 f_equal.
-          unfold to_ct_list.
-          repeat rewrite length_is_size; by rewrite size_map.
-        }
-        by auto_rewrite_cond.
-      }
-  - by eapply type_update_select_agree; eauto.
+    + apply ct_consumable_cons in Hsuffix as [Hcompat Hconsumable].
+      simpl in Hcompat.
+      replace (is_ref_t v0) with true; last by destruct v, v0.
+      unfold type_update.
+      auto_rewrite_cond.
+      apply ct_consumable_cons; split => //.
+      eapply ct_consumable_subtyping; eauto.
+      by resolve_subtyping.
+  (* Select *)
+  - admit.
   - simplify_goal.
-    by eapply type_update_agree_suffix; eauto.
-Qed.
+    by eapply type_update_agree_prefix; eauto.
+Admitted.
 (*
 Lemma c_types_agree_weakening: forall C es ts ts' ts2,
   c_types_agree (check C es (CT_type ts)) ts2 ->
@@ -2088,7 +2106,7 @@ Proof with auto_rewrite_cond.
     + rewrite List.fold_left_app => //=.
       unfold c_types_agree in IHHbet1.
       destruct (List.fold_left _ es _) eqn:Htc => //=.
-      * by eapply c_types_agree_suffix_single; eauto.
+      * by eapply c_types_agree_prefix_single; eauto.
       * move/eqP in IHHbet1. by subst.
     + simplify_subtyping.
       apply c_types_agree_subtyping with (ts1 := extr0 ++ t1s) (ts2 := extr0 ++ t2s); try by resolve_subtyping.

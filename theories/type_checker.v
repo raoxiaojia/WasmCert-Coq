@@ -30,8 +30,8 @@ Canonical Structure checker_type_aux_eqType :=
 
 (* Operand stack is stored with the top at the head of list -- in general, the reversed order is sensible, else computation later suffers from looking up at the tail of list by indices. *)
 Inductive checker_type : Type :=
-| CT_top_type : list value_type -> checker_type
-| CT_type : list value_type -> checker_type
+(* boolean is for the unreachable flag *)
+| CT_type : list value_type -> bool -> checker_type
 | CT_error : checker_type.
 
 Definition checker_type_eq_dec : forall v1 v2 : checker_type, {v1 = v2} + {v1 <> v2}.
@@ -54,30 +54,30 @@ Definition ct_compat (t_cons: checker_type_aux) (t: value_type) : bool :=
   | CTA_some vt1 => t <t: vt1
   end.
 
-Definition ct_list_compat (ts_cons: list checker_type_aux) (ts: list value_type) : bool :=
-  all2 ct_compat ts_cons ts.
-
-Definition ct_consumable (ts_cons : list checker_type_aux) (ts: list value_type) : bool :=
-  (size ts_cons <= size ts) && (ct_list_compat ts_cons (take (size ts_cons) ts)).
-
-Definition consume (t : checker_type) (ts_cons : seq checker_type_aux) : checker_type :=
-  match t with
-  | CT_type ts =>
-    if ct_consumable ts_cons ts
-    then CT_type (drop (size ts_cons) ts)
-    else CT_error
-  | CT_top_type cts =>
-    if ct_consumable (take (size cts) ts_cons) cts
-    then CT_top_type (drop (size ts_cons) cts) (* Drops cts to nil if oversized *)
-    else CT_error
-  | _ => CT_error
+Fixpoint consume (ct: checker_type) (ctas: list checker_type_aux) : checker_type :=
+  match ct with
+  | CT_type ts unreachable =>
+      match ctas with
+      | nil => ct
+      | cta :: ctas' =>
+          match ts with
+          | nil =>
+              if unreachable then CT_type nil true
+              else CT_error
+          | t :: ts' =>
+              if ct_compat cta t
+              then consume (CT_type ts' unreachable) ctas'
+              else CT_error
+          end
+      end
+  | CT_error => CT_error
   end.
 
 Definition produce (t t_prod : checker_type) : checker_type :=
   match (t, t_prod) with
-  | (CT_top_type ts, CT_type ts') => CT_top_type (rev ts' ++ ts)
-  | (CT_type ts, CT_type ts') => CT_type (rev ts' ++ ts)
-  | (_, CT_top_type ts) => CT_top_type (rev ts)
+  | (CT_type ts true, CT_type ts' false) => CT_type (rev ts' ++ ts) true
+  | (CT_type ts false, CT_type ts' false) => CT_type (rev ts' ++ ts) false
+  | (_, CT_type ts true) => CT_type (rev ts) true
   | _ => CT_error
   end.
 
@@ -87,39 +87,39 @@ Definition type_update (curr_type : checker_type) (ts_cons : seq checker_type_au
 
 Definition select_return (vt1 vt2 : value_type) : checker_type :=
   match (vt1, vt2) with
-  | (_, T_bot) => CT_type [::vt1]
-  | (T_bot, _) => CT_type [::vt2]
+  | (_, T_bot) => CT_type [::vt1] false
+  | (T_bot, _) => CT_type [::vt2] false
   | (t1, t2) =>
     if is_numeric_type t1 && (t1 == t2)
-    then CT_type [::t1]
+    then CT_type [::t1] false
     else CT_error
   end.
 
 Definition type_update_select (t : checker_type) (ots: option (list value_type)) : checker_type :=
   match ots with
-  | Some [::vt] => type_update t (to_ct_list [:: vt; vt; T_num T_i32]) (CT_type [:: vt])
+  | Some [::vt] => type_update t (to_ct_list [:: vt; vt; T_num T_i32]) (CT_type [:: vt] false)
   | Some _ => CT_error
   | None =>
       match t with
-      | CT_type ts =>
+      | CT_type ts false =>
           match ts with
           | t0 :: t1 :: t2 :: ts' =>
               if (is_numeric_type t1 && (t1 == t2))
-              then (type_update (CT_type ts) [::CTA_any; CTA_some (T_num T_i32)]) (CT_type nil)
+              then (type_update (CT_type ts false) [::CTA_any; CTA_some (T_num T_i32)]) (CT_type nil)
               else CT_error
           | _ => CT_error
           end
-      | CT_top_type ts =>
+      | CT_type ts true =>
           match ts with
-          | nil => CT_top_type [::T_bot]
-          | t0 :: nil => type_update (CT_top_type ts) [::CTA_some (T_num T_i32)] (CT_top_type [::T_bot])
+          | nil => CT_type [::T_bot] true
+          | t0 :: nil => type_update (CT_type ts true) [::CTA_some (T_num T_i32)] (CT_type [::T_bot] true)
           | t0 :: t1 :: nil =>
             (* The consumed type needs to be a numeric type; therefore we cannot simply just consume everything and produce an i32 here *)
               if is_numeric_type t0
-              then type_update (CT_top_type ts) [::CTA_some (T_num T_i32)] (CT_type nil)
+              then type_update (CT_type ts true) [::CTA_some (T_num T_i32)] (CT_type nil)
               else CT_error
           | t0 :: t1 :: t2 :: _ =>
-              type_update (CT_top_type ts) [::CTA_any; CTA_any; CTA_some (T_num T_i32)]
+              type_update (CT_type ts true) [::CTA_any; CTA_any; CTA_some (T_num T_i32)]
                 (select_return t1 t2)
           end
       | CT_error => CT_error
