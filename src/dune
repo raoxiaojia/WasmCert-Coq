@@ -1,7 +1,7 @@
 (coq.extraction
   (prelude extraction)
   (extracted_modules extract)
-  (theories Wasm)
+  (theories mathcomp Flocq compcert ExtLib parseque Wasm)
 )
 
 (executable

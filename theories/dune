@@ -1,5 +1,5 @@
 (coq.theory
   (name Wasm)
   (package coq-wasm)
+  (theories mathcomp Flocq compcert ExtLib parseque)
   (flags -w -notation-overridden -w -abstract-large-number -w -extraction-reserved-identifier))
-
