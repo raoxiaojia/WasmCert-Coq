@@ -94,7 +94,7 @@ Proof.
     apply bet_weakening_empty_1. simpl.
     apply bet_const.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType.
 Qed.
 
@@ -109,7 +109,7 @@ Proof.
     apply bet_weakening_empty_1. simpl.
     by apply bet_const.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType.
 Qed.
 
@@ -158,7 +158,7 @@ Proof.
         option_map _ ?e = _ => destruct e eqn:HDestruct => //=
       end; inversion E; apply bet_const.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType; eauto.
 Qed.
 
@@ -175,7 +175,7 @@ Proof.
     apply bet_weakening_empty_1.
     apply be_typing_const_deserialise.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType; eauto.
 Qed.
 
@@ -188,7 +188,7 @@ Proof.
   - invert_be_typing.
     apply bet_weakening_empty_both.
     by apply bet_empty.
-  - apply bet_weakening. by eapply IHHType.
+  - apply bet_weakening_optimised. by eapply IHHType.
 Qed.
 
 Lemma t_Select_preserve: forall C v1 v2 n tf be,
@@ -207,7 +207,7 @@ Proof.
       inversion H2. subst.
       apply bet_weakening_empty_1.
       by apply bet_const.
-    + apply bet_weakening. by eapply IHHType => //=.
+    + apply bet_weakening_optimised. by eapply IHHType => //=.
   - (* n = 1 : Select first *)
     gen_ind_subst HType => //=.
     + (* Composition *)
@@ -218,7 +218,7 @@ Proof.
       apply bet_weakening_empty_1.
       rewrite H6.
       by apply bet_const.
-    + apply bet_weakening. by eapply IHHType => //=.
+    + apply bet_weakening_optimised. by eapply IHHType => //=.
 Qed.
 
 Lemma t_If_be_preserve: forall C c tf0 es1 es2 tf be,
@@ -232,19 +232,19 @@ Proof.
     gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by apply bet_block.
     + (* Weakening *)
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by eapply IHHType => //=.
   - (* if_n0 *)
     gen_ind_subst HType => //=.
     + (* Composition *)
       invert_be_typing.
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by apply bet_block.
     + (* Weakening *)
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by eapply IHHType => //=.
 Qed.
 
@@ -260,7 +260,7 @@ Proof.
     invert_be_typing.
     by apply bet_br => //=. (* Surprisingly convenient! *)
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType => //=.
 Qed.
 
@@ -277,7 +277,7 @@ Proof.
     apply bet_weakening_empty_both.
     by apply bet_empty.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType => //=.
 Qed.
 
@@ -299,7 +299,7 @@ Proof.
       remove_bools_options.
       by apply bet_br => //.
     + (* Weakening *)
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by eapply IHHType => //=.
   (* out of range *)
   - dependent induction HType => //=.
@@ -311,7 +311,7 @@ Proof.
       remove_bools_options.
       by apply bet_br => //.
     + (* Weakening *)
-      apply bet_weakening.
+      apply bet_weakening_optimised.
       by eapply IHHType => //=.
 Qed.
 
@@ -328,10 +328,10 @@ Proof.
     + instantiate (1 := (ts_teelocal ++ [::typeof v])).
       apply bet_weakening_empty_1. by apply bet_const.
     + instantiate (1 := (ts_teelocal ++ [::typeof v] ++ [::typeof v])).
-      apply bet_weakening. apply bet_weakening_empty_1. by apply bet_const.
-    + apply bet_weakening. apply bet_weakening_empty_2. by apply bet_set_local.
+      apply bet_weakening_optimised. apply bet_weakening_empty_1. by apply bet_const.
+    + apply bet_weakening_optimised. apply bet_weakening_empty_2. by apply bet_set_local.
   - (* Weakening *)
-    apply bet_weakening.
+    apply bet_weakening_optimised.
     by eapply IHHType => //=.
 Qed.
 
@@ -545,7 +545,7 @@ Proof.
       simpl in HType1. apply empty_typing in HType1. subst.
       by eapply IHHType2 => //.
     + (* ety_weakening *)
-      apply ety_weakening.
+      apply ety_weakening_optimised.
       by eapply IHHType => //.
     + (* ety_label *)
       by eapply et_const_agnostic; eauto.
@@ -562,7 +562,7 @@ Proof.
       by eapply IHHType2 => //=.
     + (* ety_weakening *)
       move => ??????.
-      apply ety_weakening.
+      apply ety_weakening_optimised.
       by eapply IHHType => //.
     + (* ety_label *)
       move => ??????.
@@ -585,7 +585,7 @@ Proof.
       by eapply IHHType2 => //.
     + (* ety_weakening *)
       move => ??????.
-      apply ety_weakening.
+      apply ety_weakening_optimised.
       by eapply IHHType => //.
     + (* ety_local *)
       move => ??????.
@@ -979,7 +979,7 @@ Proof.
     + by apply IHHType1.
     + by apply IHHType2.
   - move=> s C es tf t1s t2s HType IHHType s' HST1 HST2 Hext.
-    eapply ety_weakening. by apply IHHType.
+    eapply ety_weakening_optimised. by apply IHHType.
   - move=> s C tf s' HST1 HST2 Hext.
     by apply ety_trap.
   - move=> s C n f es ts HType IHHType E s' HST1 HST2 Hext.
@@ -1626,7 +1626,7 @@ Proof.
     + remove_bools_options. subst.
       rewrite -cat1s.
       replace (typeof a :: ts) with ([::typeof a] ++ ts) => //.
-      apply ety_weakening.
+      apply ety_weakening_optimised.
       by apply IHl.
 Qed.
 
@@ -1730,7 +1730,7 @@ Proof.
   - (* Call *)
     convert_et_to_bet => //.
     invert_be_typing.
-    apply ety_weakening.
+    apply ety_weakening_optimised.
     eapply inst_typing_func in HIT1; eauto. destruct HIT1 as [cl HNthFunc].
     eapply ety_invoke; eauto.
     assert ((Tf ts1'_call ts2'_call) = cl_type cl) as HFType; first by eapply tc_func_reference1; eauto.
@@ -1741,7 +1741,7 @@ Proof.
     replace [::BI_const (VAL_int32 c); BI_call_indirect i] with ([::BI_const (VAL_int32 c)] ++ [::BI_call_indirect i]) in HType => //=.
     invert_be_typing.
     simpl in *.
-    repeat apply ety_weakening.
+    repeat apply ety_weakening_optimised.
     eapply ety_invoke; eauto.
     unfold stypes in e1.
     assert ((Tf ts_callindirect ts1'_callindirect) = cl_type cl) as HFType; first by eapply tc_func_reference2; eauto.

@@ -447,7 +447,7 @@ Proof.
     by exists t2s.
   + edestruct IHHType as [t3s [??]]; eauto; subst.
     exists (ts ++ t3s).
-    by split; apply bet_weakening.
+    by split; apply bet_weakening_optimised.
 Qed.
 
 Lemma be_composition_typing: forall C es1 es2 t1s t2s,
@@ -751,7 +751,7 @@ Proof.
   - (* weakening *)
     edestruct IHHType as [ts3 [Het1 Het2]]; eauto.
     exists (ts ++ ts3).
-    by repeat split => //; apply ety_weakening.
+    by repeat split => //; apply ety_weakening_optimised.
   - (* Trap *)
     exists t1s.
     repeat split => //=.

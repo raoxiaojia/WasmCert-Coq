@@ -841,6 +841,30 @@ Qed.
 
 (** Typing lemmas **)
 
+Lemma bet_weakening_optimised: forall (C : t_context) (es : seq basic_instruction)
+         (ts : seq value_type) (t1s t2s : result_type),
+       be_typing C es (Tf t1s t2s) ->
+       be_typing C es (Tf (ts ++ t1s)%list (ts ++ t2s)%list).
+Proof.
+  move => C es ts t1s t2s HType.
+  destruct ts as [ | t ts]; first exact HType.
+  apply bet_weakening.
+  exact HType.
+Qed.
+  
+Lemma ety_weakening_optimised: forall (host_function : eqType)
+         (s : datatypes.store_record host_function) 
+         (C : t_context) (es : seq administrative_instruction)
+         (ts : seq value_type) (t1s t2s : result_type),
+       typing.e_typing s C es (Tf t1s t2s) ->
+       typing.e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s)).
+Proof.
+  move => hf s C es ts t1s t2s HType.
+  destruct ts as [ | t ts]; first exact HType.
+  apply ety_weakening.
+  exact HType.
+Qed.
+  
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,
     es_is_basic es ->
@@ -859,8 +883,9 @@ Lemma bet_weakening_empty_1: forall C es ts t2s,
     be_typing C es (Tf ts (ts ++ t2s)).
 Proof.
   move => C es ts t2s HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ t2s))) as Hbet; first by apply bet_weakening.
-  by rewrite cats0 in Hbet.
+  replace ts with (ts ++ [::]) at 1; last by rewrite cats0.
+  apply bet_weakening_optimised.
+  exact HType.
 Qed.
 
 Lemma et_weakening_empty_1: forall s C es ts t2s,
@@ -868,8 +893,9 @@ Lemma et_weakening_empty_1: forall s C es ts t2s,
     e_typing s C es (Tf ts (ts ++ t2s)).
 Proof.
   move => s C es ts t2s HType.
-  assert (e_typing s C es (Tf (ts ++ [::]) (ts ++ t2s))) as Hbet; first by apply ety_weakening.
-  by rewrite cats0 in Hbet.
+  replace ts with (ts ++ [::]) at 1; last by rewrite cats0.
+  apply ety_weakening_optimised.
+  exact HType.
 Qed.
 
 Lemma bet_weakening_empty_2: forall C es ts t1s,
@@ -877,8 +903,9 @@ Lemma bet_weakening_empty_2: forall C es ts t1s,
     be_typing C es (Tf (ts ++ t1s) ts).
 Proof.
   move => C es ts t1s HType.
-  assert (be_typing C es (Tf (ts ++ t1s) (ts ++ [::]))) as Hbet; first by apply bet_weakening.
-  by rewrite cats0 in Hbet.
+  replace ts with (ts ++ [::]) at 2; last by rewrite cats0.
+  apply bet_weakening_optimised.
+  exact HType.
 Qed.
 
 Lemma bet_weakening_empty_both: forall C es ts,
@@ -886,8 +913,9 @@ Lemma bet_weakening_empty_both: forall C es ts,
     be_typing C es (Tf ts ts).
 Proof.
   move => C es ts HType.
-  assert (be_typing C es (Tf (ts ++ [::]) (ts ++ [::]))) as Hbet; first by apply bet_weakening.
-  by rewrite cats0 in Hbet.
+  replace ts with (ts ++ [::]); last by rewrite cats0.
+  apply bet_weakening_optimised.
+  exact HType.
 Qed.
 
 Lemma empty_typing: forall C t1s t2s,
@@ -916,7 +944,7 @@ Proof.
     eapply bet_composition.
     * by eapply IHHType1 => //.
     * by eapply IHHType2 => //.
-  + apply bet_weakening. by eapply IHHType => //.
+  + apply bet_weakening_optimised. by eapply IHHType => //.
 Qed.
 
 Lemma empty_e_typing: forall s C t1s t2s,
@@ -991,10 +1019,10 @@ Proof.
     destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
     exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
     repeat split => //.
-    + by apply bet_weakening.
+    + by apply bet_weakening_optimised.
     + rewrite rev_cons. rewrite -cats1.
       eapply bet_composition; eauto.
-      by apply bet_weakening.
+      by apply bet_weakening_optimised.
 Qed.
 
 Lemma e_composition_typing_single: forall s C es1 e t1s t2s,
@@ -1070,10 +1098,10 @@ Proof.
     destruct H3 as [ts2 [t1s2 [t2s2 [t3s2 [H5 [H6 [H7 H8]]]]]]]. subst.
     exists ts', (ts2 ++ t1s2), t2s', (ts2 ++ t3s2).
     repeat split => //.
-    + by apply ety_weakening.
+    + by apply ety_weakening_optimised.
     + rewrite rev_cons. rewrite -cats1.
       eapply ety_composition; eauto.
-      by apply ety_weakening.
+      by apply ety_weakening_optimised.
 Qed.
 
 Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
@@ -1098,10 +1126,10 @@ Proof.
     rewrite catA. eapply bet_composition => //=.
     instantiate (1 := (ts ++ t3s')).
     eapply IHes2' => //.
-    instantiate (1 := (ts ++ t1s')); first by apply bet_weakening.
+    instantiate (1 := (ts ++ t1s')); first by apply bet_weakening_optimised.
     symmetry. by apply revK.
     by apply HType1.
-    by apply bet_weakening.
+    by apply bet_weakening_optimised.
 Qed.
 
 Lemma bet_composition_front: forall C e es t1s t2s t3s,
@@ -1137,10 +1165,10 @@ Proof.
     rewrite catA. eapply ety_composition => //=.
     instantiate (1 := (ts ++ t3s')).
     eapply IHes2' => //.
-    instantiate (1 := (ts ++ t1s')); first by apply ety_weakening.
+    instantiate (1 := (ts ++ t1s')); first by apply ety_weakening_optimised.
     symmetry. by apply revK.
     by apply HType1.
-    by apply ety_weakening.
+    by apply ety_weakening_optimised.
 Qed.
 
 End composition_typing_proofs.
