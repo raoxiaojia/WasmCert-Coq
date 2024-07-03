@@ -181,15 +181,15 @@ let interpret verbosity error_code_on_crash sies (name: string) =
         pure None
       | Extract.RSP_cfg (_, s, f, es, ts, p) ->
         wait_message verbosity;
-        debug_info verbosity result ~style:green (fun _ -> "cfg\n");
+        debug_info verbosity stage ~style:green (fun _ -> "cfg\n");
         eval_cfg (gen + 1) cfg_res
       | Extract.RSP_terminal (es, p) ->
         begin match is_const_list es with
         | Some vs -> 
-          debug_info verbosity stage ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+          debug_info verbosity result ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
           pure (Some vs)
         | None -> 
-          debug_info verbosity stage ~style:red (fun _ -> "termination with a non-value\n"); 
+          debug_info verbosity result ~style:red (fun _ -> "termination with a non-value\n"); 
           pure None
         end) in
   
