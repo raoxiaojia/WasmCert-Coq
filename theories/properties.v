@@ -864,7 +864,7 @@ Proof.
   apply ety_weakening.
   exact HType.
 Qed.
-  
+ 
 (* A reformulation of [ety_a] that is easier to be used. *)
 Lemma ety_a': forall s C es ts,
     es_is_basic es ->
@@ -956,6 +956,37 @@ Proof.
   by apply empty_typing in HType.
 Qed.
 
+Lemma bet_composition_optimised: forall (C : t_context) (es : seq basic_instruction)
+         (e : basic_instruction) (t1s t2s t3s : result_type),
+       be_typing C es (Tf t1s t2s) ->
+       be_typing C [:: e] (Tf t2s t3s) ->
+       be_typing C (es ++ [:: e])%list (Tf t1s t3s).
+Proof.
+  move => C es e t1s t2s t3s HType1 HType2.
+  destruct es as [ | e' es'].
+  { apply empty_typing in HType1; subst.
+    exact HType2.
+  }
+  by apply bet_composition with (t2s := t2s).
+Qed.
+
+Lemma ety_composition_optimised: forall
+         (s : datatypes.store_record host_function) 
+         (C : t_context) (es : seq administrative_instruction)
+         (e : administrative_instruction) (t1s t2s t3s : result_type),
+       e_typing s C es (Tf t1s t2s) ->
+       e_typing s C [:: e] (Tf t2s t3s) ->
+       e_typing s C (es ++ [:: e]) (Tf t1s t3s).
+Proof.
+  move => s C es e t1s t2s t3s HType1 HType2.
+  destruct es as [ | e' es'].
+  { apply empty_e_typing in HType1; subst.
+    exact HType2.
+  }
+  by apply ety_composition with (t2s := t2s).
+Qed.
+
+(*
 Section composition_typing_proofs.
 
 Hint Constructors be_typing : core.
@@ -1069,6 +1100,7 @@ Proof.
     + by eapply ety_label; eauto.
 Qed.
 
+(*
 Lemma e_composition_typing: forall s C es1 es2 t1s t2s,
     e_typing s C (es1 ++ es2) (Tf t1s t2s) ->
     {ts & {t1s' & {t2s' & {t3s & ((t1s = ts ++ t1s') **
@@ -1103,7 +1135,7 @@ Proof.
       eapply ety_composition; eauto.
       by apply ety_weakening_optimised.
 Qed.
-
+*)
 Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
     be_typing C es1 (Tf t1s t2s) ->
     be_typing C es2 (Tf t2s t3s) ->
@@ -1172,7 +1204,7 @@ Proof.
 Qed.
 
 End composition_typing_proofs.
-
+*)
 (************ these come from the certified itp *************)
 
 Lemma bet_const' : forall C vs,

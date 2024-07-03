@@ -324,7 +324,7 @@ Proof.
   - (* Composition *)
     invert_be_typing.
     replace ([::BI_const v; BI_const v; BI_set_local i]) with ([::BI_const v] ++ [::BI_const v] ++ [::BI_set_local i]) => //.
-    repeat (try rewrite catA; eapply bet_composition) => //.
+    repeat (try rewrite catA; eapply bet_composition_optimised) => //.
     + instantiate (1 := (ts_teelocal ++ [::typeof v])).
       apply bet_weakening_empty_1. by apply bet_const.
     + instantiate (1 := (ts_teelocal ++ [::typeof v] ++ [::typeof v])).
@@ -428,7 +428,7 @@ Proof.
     rewrite const_list_cat in HConst; remove_bools_options.
     invert_be_typing.
     simpl in *.
-    eapply bet_composition => //=; eauto.
+    eapply bet_composition_optimised => //=; eauto.
     (* The main reason that this holds *)
     remove_bools_options.
     destruct x => //=.
@@ -975,7 +975,7 @@ Proof.
     replace (operations.to_b_list (operations.to_e_list bes)) with bes => //.
     by apply b_e_elim.
   - move=> s C bes tf r1 r2 r3 HType1 IHHType1 IH2 IHHType2 s' HST1 HST2 Hext.
-    eapply ety_composition.
+    eapply ety_composition_optimised.
     + by apply IHHType1.
     + by apply IHHType2.
   - move=> s C es tf t1s t2s HType IHHType s' HST1 HST2 Hext.

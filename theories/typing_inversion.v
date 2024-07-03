@@ -469,7 +469,7 @@ Proof.
     exists ts3'.
     repeat split => //.
     rewrite -cats1.
-    by eapply bet_composition; eauto.
+    by eapply bet_composition_optimised; eauto.
 Qed.
 
 Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
@@ -478,12 +478,19 @@ Lemma bet_composition': forall C es1 es2 t1s t2s t3s,
     be_typing C (es1 ++ es2) (Tf t1s t3s).
 Proof.
   move => C es1 es2.
+  destruct es1 as [ | e es'].
+  { move => ??? HType1 HType2 /=.
+    apply empty_typing in HType1; subst.
+    exact HType2.
+  }
+  remember (e :: es') as es1; clear Heqes1.
+  clear e es'.
   move: es1.
   induction es2 using last_ind; move => es1 t1s t2s t3s Hbet1 Hbet2.
   - apply empty_typing in Hbet2; by rewrite cats0; subst.
   - rewrite -cats1 in Hbet2.
     apply be_composition_typing in Hbet2 as [ts3 [Hbet3 Hbet4]].
-    rewrite -cats1 catA. eapply bet_composition; last by eauto.
+    rewrite -cats1 catA. eapply bet_composition_optimised; last by eauto.
     by eapply IHes2; eauto.
 Qed.
 
@@ -791,7 +798,7 @@ Proof.
     exists ts3'.
     repeat split => //.
     rewrite -cats1.
-    by eapply ety_composition; eauto.
+    by eapply ety_composition_optimised; eauto.
 Qed.
 
 Lemma et_composition': forall s C es1 es2 t1s t2s t3s,
@@ -807,7 +814,7 @@ Proof.
     by subst.
   - rewrite -cats1 in Het2.
     apply e_composition_typing in Het2 as [ts3' [Het3 Het4]].
-    rewrite -cats1 catA. eapply ety_composition => //=.
+    rewrite -cats1 catA. eapply ety_composition_optimised => //=.
     eapply IHes2; eauto.
     by eauto.
 Qed.
