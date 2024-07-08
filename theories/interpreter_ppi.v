@@ -68,7 +68,6 @@ Fixpoint run_multi_step_ppi (fuel: nat) (cfg: res_ppi) {struct fuel}: res_ppi :=
       | x => x
       end
   end.
-
 Definition make_ppi_cfg hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
   RSP_cfg hs Htype.
 

@@ -1217,7 +1217,7 @@ Proof.
     rewrite map_cat.
     replace (map typeof vs') with ((map typeof vs') ++ [::]) at 1;
       last by rewrite cats0.
-    by apply bet_weakening; apply bet_const.
+    by apply bet_weakening_optimised; apply bet_const.
 Qed.
 
 Lemma to_b_v_to_e_is_bi_const : forall vs,

@@ -436,7 +436,7 @@ Ltac auto_prove_bet:=
 
 Lemma be_composition_typing_single: forall C es1 e t1s t2s,
     be_typing C (es1 ++ [::e]) (Tf t1s t2s) ->
-    { t3s & be_typing C es1 (Tf t1s t3s) **
+    {t3s & be_typing C es1 (Tf t1s t3s) **
            be_typing C [::e] (Tf t3s t2s)}.
 Proof.
   move => C es1 e t1s t2s HType.
