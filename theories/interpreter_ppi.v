@@ -152,6 +152,72 @@ Proof.
   exact (Some (run_multi_step_ppi fuel cfg)).
 Defined.
 
+Fixpoint sizeof_bet {C es tf} (H: be_typing C es tf) : N :=
+  match H with
+  | bet_block _ _ _ _ H' =>
+      let n := sizeof_bet H' in
+      N.add n 1
+  | bet_loop _ _ _ _ H' =>
+      let n := sizeof_bet H' in
+      N.add n 1
+  | bet_if_wasm _ _ _ _ _ H1 H2 =>
+      let n1 := sizeof_bet H1 in
+      let n2 := sizeof_bet H2 in
+      N.add (N.add n1 n2) 1
+  | bet_composition _ _ _ _ _ _ H1 H2 =>
+      let n1 := sizeof_bet H1 in
+      let n2 := sizeof_bet H2 in
+      N.add (N.add n1 n2) 1
+  | bet_weakening _ _ _ _ _ H' =>
+      let n := sizeof_bet H' in
+      N.add n 1
+  | _ => 1
+  end.
+
+Fixpoint sizeof_et {s C es tf} (H: e_typing s C es tf) : N :=
+  match H with
+  | ety_a _ _ _ _ H' =>
+      let n := sizeof_bet H' in
+      N.add n 1
+  | ety_composition _ _ _ _ _ _ _ H1 H2 =>
+      let n1 := sizeof_et H1 in
+      let n2 := sizeof_et H2 in
+      N.add (N.add n1 n2) 1
+  | ety_weakening _ _ _ _ _ _ H' =>
+      let n := sizeof_et H' in
+      N.add n 1
+  | ety_local _ _ _ _ _ _ H' _ =>
+      let n := sizeof_st H' in
+      N.add n 1
+  | ety_label _ _ _ _ _ _ _ H1 H2 _ =>
+      let n1 := sizeof_et H1 in
+      let n2 := sizeof_et H2 in
+      N.add (N.add n1 n2) 1
+  | _ => 1
+  end
+  with
+  sizeof_st {s rs f es ts} (H: s_typing s rs f es ts) : N :=
+    match H with
+    | mk_s_typing _ _ _ _ _ _ _ _ _ H' _ =>
+        let n := sizeof_et H' in
+        N.add n 1
+    end.
+
+Definition sizeof_cfgt {s f es ts} (H: config_typing s f es ts) : N :=
+  match H with
+  | mk_config_typing _ _ _ _ _ H' =>
+      let n := sizeof_st H' in
+      N.add n 1
+  end.
+
+Definition sizeof_ppi (cfg_res: res_ppi) : N :=
+  match cfg_res with
+  | RSP_cfg _ _ _ _ _ H =>
+      sizeof_cfgt H
+  | _ => 0
+  end.
+
+
 End Host.
 
 (** Extraction **)
@@ -203,5 +269,7 @@ Definition run_ppi_init_invoke := @run_ppi_init_invoke host_function_eqType host
 Definition run_multi_step' := @run_multi_step' host_function_eqType host_instance tt.
 
 Definition is_const_list := e_to_v_list_opt.
+
+Definition sizeof_ppi := @sizeof_ppi host_function_eqType host_instance.
 
 End Interpreter_PPI_extract.

@@ -59,6 +59,8 @@ module type InterpreterType = sig
     res_ppi -> string
   val pp_res_tuple_except_store_typed :
     res_ppi -> string
+  val sizeof_ppi :
+    res_ppi -> Extract.static_offset
   val pp_config_tuple_except_store :
     ((Extract.EmptyHost.store_record * Extract.frame) * Extract.administrative_instruction list) ->
     string
@@ -128,6 +130,9 @@ functor (EH : Host) -> struct
 
   let pp_config_tuple_except_store cfg =
     Utils.implode (PP.pp_config_tuple_except_store cfg)
+
+  let sizeof_ppi cfg = 
+    Interpreter.sizeof_ppi cfg
 
   let pp_es es =
     Utils.implode (PP.pp_administrative_instructions O es)

@@ -90,8 +90,27 @@ let take_step verbosity _i cfg =
     pure cfg
   | Extract.RSP_cfg _ ->
     pure cfg
+(*
+    type positive =
+    | XI of positive
+    | XO of positive
+    | XH
+    
+    type n =
+    | N0
+    | Npos of positive
+    *)
 
+let rec int_of_pos p =
+  match p with
+  | Extract.XI p' -> 2 * (int_of_pos p') + 1
+  | Extract.XO p' -> 2 * (int_of_pos p')
+  | Extract.XH -> 1
 
+let int_of_N n =
+  match n with
+  | Extract.N0 -> 0
+  | Extract.Npos p -> int_of_pos p
 
 let sies_to_cfg (name: string) sies = 
   match lookup_exported_function name sies with
@@ -153,16 +172,20 @@ let interpret verbosity error_code_on_crash sies (name: string) =
       ovpending verbosity stage "interpreting" (fun _ ->
         sies_to_cfg name sies
         )) in
-  let rec eval_cfg gen cfg =
+  let rec eval_cfg gen cfg max_size total_size =
    (* if (gen >= max_steps) then 
       (print_exhaustion gen;
       debug_info verbosity result ~style:bold (fun _ -> "fuel exhaustion\n");
       pure None)
     else *)
       (let cfg_res = run_step cfg in
+      let ppi_size = (int_of_N (sizeof_ppi cfg_res)) in
       print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_tuple_except_store_typed cfg_res);
+        
+      debug_info verbosity stage
+        (fun _ -> "Size of proof term : " ^ string_of_int (int_of_N (sizeof_ppi cfg_res)));
         (*
       debug_info_span verbosity intermediate intermediate
         (fun () ->
@@ -182,11 +205,11 @@ let interpret verbosity error_code_on_crash sies (name: string) =
       | Extract.RSP_cfg (_, s, f, es, ts, p) ->
         wait_message verbosity;
         debug_info verbosity stage ~style:green (fun _ -> "cfg\n");
-        eval_cfg (gen + 1) cfg_res
+        eval_cfg (gen + 1) cfg_res (max ppi_size max_size) (total_size + ppi_size)
       | Extract.RSP_terminal (es, p) ->
         begin match is_const_list es with
         | Some vs -> 
-          debug_info verbosity result ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n");
+          debug_info verbosity result ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n maximum/average proof size = " ^ string_of_int max_size ^ "/" ^ string_of_float ((float_of_int total_size) /. (float_of_int gen)) ^ "\n");
           pure (Some vs)
         | None -> 
           debug_info verbosity result ~style:red (fun _ -> "termination with a non-value\n"); 
@@ -198,7 +221,7 @@ let interpret verbosity error_code_on_crash sies (name: string) =
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_res_tuple_except_store_typed cfg0));
-  let* res = eval_cfg 1 cfg0 in
+  let* res = eval_cfg 1 cfg0 0 0 in
   debug_info_span verbosity result stage (fun _ ->
     match res with
     | Some vs -> pp_values vs
