@@ -91,7 +91,16 @@ let take_step verbosity _i cfg =
   | Extract.RSP_cfg _ ->
     pure cfg
 
-
+let rec int_of_pos p =
+      match p with
+      | Extract.XI p' -> 2 * (int_of_pos p') + 1
+      | Extract.XO p' -> 2 * (int_of_pos p')
+      | Extract.XH -> 1
+    
+let int_of_N n =
+      match n with
+      | Extract.N0 -> 0
+      | Extract.Npos p -> int_of_pos p
 
 let sies_to_cfg (name: string) sies = 
   match lookup_exported_function name sies with
