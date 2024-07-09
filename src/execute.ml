@@ -173,7 +173,7 @@ let interpret verbosity error_code_on_crash sies (name: string) =
       print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_tuple_except_store_typed cfg_res);
-      print_endline(string_of_int ppi_size);
+     (* print_endline(string_of_int ppi_size); *)
         
       debug_info verbosity stage
         (fun _ -> "Size of proof term : " ^ string_of_int (int_of_N (sizeof_ppi cfg_res)));
