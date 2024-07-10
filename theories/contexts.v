@@ -47,7 +47,7 @@ Definition fmask0 {T1 T2: Type} := (fun (_: T1) => @id T2).
 
 Definition fcond0 {T1 T2 T3: Type} := (fun (_: T1) (_: T2) (_: T3) => True).
 
-(* Sequence context: rev vs ++ [_] ++ es. This is only used in the base level *)
+(* Sequence context: rev vs ++ [_] ++ es. *)
 Definition seq_ctx : Type := (list value) * (list administrative_instruction).
 
 #[refine, export]
@@ -59,12 +59,11 @@ Proof.
 Defined.
 
 
-(* Label context: rev LC_val ++ [::AI_label LC_arity LC_cont [_]) ++ LC_post; can be nested *)
+(* Label context: [::AI_label LC_arity LC_cont [LC_seq [_] ]); can be nested *)
 Record label_ctx: Type :=
-  { LC_val: list value;
-    LC_arity: nat;
+  { LC_arity: nat;
+    LC_seq: seq_ctx;
     LC_cont: list administrative_instruction;
-    LC_post: list administrative_instruction;
   }.
 
 Definition label_ctx_eq_dec (v1 v2 : label_ctx): {v1 = v2} + {v1 <> v2}.
@@ -79,50 +78,15 @@ Definition eqlabel_ctx: Equality.axiom label_ctx_eqb :=
 Canonical Structure label_ctx_eqMixin := EqMixin eqlabel_ctx.
 Canonical Structure label_ctx_eqType := Eval hnf in EqType label_ctx label_ctx_eqMixin.
 
-Definition label_ctx_fill := (fun es ctx => (vs_to_es (LC_val ctx) ++ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ++ (LC_post ctx))).
+Definition label_ctx_fill := (fun es ctx => [::AI_label (LC_arity ctx) (LC_cont ctx) ((LC_seq ctx) ⦃ es ⦄)]).
 
 #[refine, export]
 Instance label_ctx_eval: eval_ctx label_ctx :=
   {| ctx_fill := label_ctx_fill;
      ctx_frame_mask := fmask0; ctx_frame_cond := fcond0 |}.
 Proof.
-  move => [lvs lk lces les] hs s f es hs' s' f' es' _ Hred.
-  eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
-Defined.
-
-
-(* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post 
-   Note that the outermost frame  is technically only a framestate as stated in the 2.0 spec.
-*)
-Record frame_ctx: Type :=
-  { FC_val: list value;
-    FC_arity: nat;
-    FC_frame: frame;
-    FC_post: list administrative_instruction;
-  }.
-
-Definition frame_ctx_eq_dec (v1 v2 : frame_ctx): {v1 = v2} + {v1 <> v2}.
-Proof.
-  by decidable_equality.
-Qed.
-
-Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
-Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
-  eq_dec_Equality_axiom frame_ctx_eq_dec.
-
-Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
-Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
-
-#[refine, export]
-Instance frame_ctx_eval: eval_ctx frame_ctx :=
-  {| ctx_fill := (fun es ctx => (vs_to_es (FC_val ctx) ++ [::AI_frame (FC_arity ctx) (FC_frame ctx) es] ++ (FC_post ctx)));
-    ctx_frame_mask := (fun ctx _ => ctx.(FC_frame));
-    ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
-  |}.
-Proof.
-  move => [lvs lk lf les] hs s f es hs' s' f' es' /= <- Hred /=.
-  eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-  by apply r_frame.
+  move => [lk [ls_vs ls_es] lces] hs s f es hs' s' f' es' _ Hred.
+  eapply r_label with (lh := LH_rec nil lk lces (LH_base (rev ls_vs) ls_es) nil); eauto => //; by unfold label_ctx_fill => //=.
 Defined.
 
 (* A general instance for lists of evaluation contexts *)
@@ -155,6 +119,41 @@ Proof.
   by elim.
 Qed.
 
+
+(* Frame context: [::AI_frame FC_arity FC_frame [FC_labs [FC_seq [_] ]])
+   Note that the outermost frame is technically only a framestate as stated in the 2.0 spec.
+*)
+Record frame_ctx: Type :=
+  { FC_arity: nat;
+    FC_labs: label_ctx;
+    FC_frame: frame;
+  }.
+
+Definition frame_ctx_eq_dec (v1 v2 : frame_ctx): {v1 = v2} + {v1 <> v2}.
+Proof.
+  by decidable_equality.
+Qed.
+
+Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
+Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
+  eq_dec_Equality_axiom frame_ctx_eq_dec.
+
+Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
+Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
+
+#[refine, export]
+Instance frame_ctx_eval: eval_ctx frame_ctx :=
+  {| ctx_fill := (fun es ctx => ([::AI_frame (FC_arity ctx) (FC_frame ctx) ((FC_labs ctx) ⦃ es ⦄)]));
+    ctx_frame_mask := (fun ctx _ => ctx.(FC_frame));
+    ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
+  |}.
+Proof.
+  move => [lk llabs lf] hs s f es hs' s' f' es' /= <- Hred.
+  apply r_frame.
+  apply (list_ctx_eval label_ctx).ctx_reduce.
+  eapply r_label with (lh := LH_base (rev ls_vs) ls_es); eauto => //=; try by rewrite -cat1s.
+Defined.
+
 Lemma ctx_frame_cond_list_frame: forall (lcs: list frame_ctx) f,
   ctx_frame_cond_list lcs f f.
 Proof.
@@ -183,12 +182,12 @@ Instance list_label_ctx_eval : eval_ctx (list label_ctx) :=
     |}.
 Proof.
   elim => //.
-  move => [lvs lk lces les] ctxs' IH hs s f es hs' s' f' es' _ Hred /=.
+  move => [lk [lvs les] lces] ctxs' IH hs s f es hs' s' f' es' _ Hred /=.
   rewrite /fmask0 in Hred.
   rewrite /label_ctx_fill /=.
   apply IH => //.
   rewrite /fmask0.
-  eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
+  eapply r_label with (lh := LH_rec nil lk lces (LH_base (rev lvs) les) nil); eauto => //; by rewrite /label_ctx_fill /= cats0.
 Defined.
 
 #[refine, export]
@@ -205,13 +204,13 @@ Proof.
   case => //.
   move => ctx ctxs'; move: ctxs' ctx.
   elim => //.
-  - move => [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred /=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_frame.
-  - move => ctx ctxs' IH [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred.
+  - move => [lk [lvs les] lf] hs s f es hs' s' f' es' <- /=Hred /=.
+    apply r_frame.
+    by eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
+  - move => ctx ctxs' IH [lk [lvs les] lf] hs s f es hs' s' f' es' <- Hred.
     apply IH => //=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_frame.
+    apply r_frame.
+    by eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
 Defined.
 
 #[refine, export]
