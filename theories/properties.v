@@ -846,10 +846,11 @@ Lemma bet_weakening_optimised: forall (C : t_context) (es : seq basic_instructio
        be_typing C es (Tf t1s t2s) ->
        be_typing C es (Tf (ts ++ t1s)%list (ts ++ t2s)%list).
 Proof.
-  move => C es ts t1s t2s HType.
+  by apply bet_weakening.
+  (*move => C es ts t1s t2s HType.
   destruct ts as [ | t ts]; first exact HType.
   apply bet_weakening.
-  exact HType.
+  exact HType.*)
 Qed.
   
 Lemma ety_weakening_optimised: forall (host_function : eqType)
@@ -859,10 +860,11 @@ Lemma ety_weakening_optimised: forall (host_function : eqType)
        typing.e_typing s C es (Tf t1s t2s) ->
        typing.e_typing s C es (Tf (ts ++ t1s) (ts ++ t2s)).
 Proof.
-  move => hf s C es ts t1s t2s HType.
+  by apply ety_weakening.
+  (*move => hf s C es ts t1s t2s HType.
   destruct ts as [ | t ts]; first exact HType.
   apply ety_weakening.
-  exact HType.
+  exact HType.*)
 Qed.
  
 (* A reformulation of [ety_a] that is easier to be used. *)
