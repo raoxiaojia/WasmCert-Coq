@@ -410,6 +410,19 @@ Definition pp_store (n : indentation) (s : store_record host_function) : string 
   indent n ("tables" ++ newline) ++
   pp_tables (n.+1) s.(s_tables).
 
+(* Reduction terms *)
+
+Fixpoint pp_reduce {hf hi hs s f es hs' s' f' es'} (p: @reduce hf hi hs s f es hs' s' f' es') (n: indentation) : string :=
+  indent n (
+      match p with
+      | @r_label _ _ s f es les _ _ es' les' _ _ _ _ _ _ _ =>
+          "label of" ++ pp_administrative_instructions 1 es
+                     ++ pp_administrative_instructions 1 les
+                     ++ pp_administrative_instructions 1 es'
+                     ++ pp_administrative_instructions 1 les'
+      | _ => "simple"
+      end).
+
 (* Typing terms *)
 
 Fixpoint pp_bet {C es tf} (p: be_typing C es tf) (n: indentation) : string :=
@@ -493,14 +506,14 @@ Definition pp_res_tuple_except_store (cfg: @res_ppi host_function host_instance)
   match cfg with
   | RSP_exhaustion => "exhaustion"
   | RSP_terminal es _ => "termination with " ++ pp_administrative_instructions 0 es
-  | RSP_cfg hs s f es ts _ => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
+  | RSP_cfg hs s f es ts _ _ => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline
   end.
 
 Definition pp_res_tuple_except_store_typed (cfg: @res_ppi host_function host_instance) : string :=
   match cfg with
   | RSP_exhaustion => "exhaustion"
   | RSP_terminal es _ => "termination with " ++ pp_administrative_instructions 0 es
-  | RSP_cfg hs s f es ts pcfgt => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline ++ "and typing term:" ++ newline ++ pp_cfgt pcfgt 0 ++ newline
+  | RSP_cfg hs s f es ts pcfgt pred => "step with " ++ newline ++ pp_administrative_instructions 0 es ++ " with values " ++ pp_values_hint_empty f.(f_locs) ++ newline ++ "and typing term:" ++ newline ++ pp_cfgt pcfgt 0 ++ newline ++ "and reduction term:" ++ newline ++ pred
   end.
 
 End Host.

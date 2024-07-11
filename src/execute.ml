@@ -203,7 +203,7 @@ let interpret verbosity error_code_on_crash sies (name: string) =
         wait_message verbosity;
         debug_info verbosity result ~style:red (fun _ -> "crash\n");
         pure None
-      | Extract.RSP_cfg (_, s, f, es, ts, p) ->
+      | Extract.RSP_cfg (_, s, f, es, ts, p, pred) ->
         wait_message verbosity;
         debug_info verbosity stage ~style:green (fun _ -> "cfg\n");
         eval_cfg (gen + 1) cfg_res (max ppi_size max_size) (total_size + ppi_size)

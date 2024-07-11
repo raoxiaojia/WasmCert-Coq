@@ -1897,7 +1897,7 @@ Proof.
       invert_e_typing'.
       eapply et_composition'; eauto.
       * eapply et_const_agnostic; eauto; last by apply v_to_e_const.
-      * eapply et_composition'; eauto.
+      * eapply et_composition'; first by eapply IHHReduce; eauto.
         { assert (HCEmpty: tc_local C = [::]); first by eapply inst_t_context_local_empty; eauto.
           rewrite -> HCEmpty in H1_comp.
           replace (map typeof f'.(f_locs)) with (map typeof f.(f_locs)); last by eapply t_preservation_vs_type; eauto.

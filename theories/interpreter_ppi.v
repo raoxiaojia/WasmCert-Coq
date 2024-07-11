@@ -1,4 +1,5 @@
 From Wasm Require Import common properties tactic typing_inversion.
+Require Import Coq.Strings.String.
 From Coq Require Import ZArith.BinInt Program.Equality.
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Export operations host type_preservation type_progress type_checker type_checker_reflects_typing context_inference.
@@ -41,11 +42,22 @@ Inductive res_ppi : Type :=
 | RSP_exhaustion
 | RSP_cfg: forall (hs: host_state) s f es ts,
     config_typing s f es ts ->
+    string ->
     res_ppi
 | RSP_terminal: forall es,
     terminal_form es ->
     res_ppi
 .
+
+Fixpoint string_of_reduce {hf hi hs s f es hs' s' f' es'} (p: @opsem.reduce hf hi hs s f es hs' s' f' es') : string :=
+  match p with
+  | @r_label _ _ _ _ _ _ _ _ _ _ _ _ _ _ Hred _ _ =>
+      "r_label" ++ string_of_reduce Hred
+  | @r_local _ _ _ _ _ _ _ _ _ _ _ _ Hred =>
+      "r_local" ++ string_of_reduce Hred
+  | _ => "rule"
+  end.
+
 
 Definition run_one_step_ppi (cfg: res_ppi): res_ppi.
 Proof.
@@ -54,7 +66,8 @@ Proof.
   - destruct (t_progress hs Htype) as [Hterm | [s' [f' [es' [hs' Hred]]]]].
     + exact (@RSP_terminal es Hterm).
     + specialize (t_preservation Hred Htype) as Htype'.
-      by eapply RSP_cfg; eauto.
+      eapply RSP_cfg. 1,2: by eauto.
+      exact (string_of_reduce Hred).
   - by eapply RSP_terminal; eauto.
 Defined.
 
@@ -63,14 +76,14 @@ Fixpoint run_multi_step_ppi (fuel: nat) (cfg: res_ppi) {struct fuel}: res_ppi :=
   | 0 => RSP_exhaustion
   | (S fuel') =>
       match cfg with
-      | RSP_cfg hs s f es ts Htype =>
-          run_multi_step_ppi fuel' (run_one_step_ppi (RSP_cfg hs Htype))
+      | RSP_cfg hs s f es ts Htype str =>
+          run_multi_step_ppi fuel' (run_one_step_ppi (RSP_cfg hs Htype str))
       | x => x
       end
   end.
 
 Definition make_ppi_cfg hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
-  RSP_cfg hs Htype.
+  RSP_cfg hs Htype EmptyString.
 
 Definition run_multi_step (fuel: N) hs s f es ts (Htype: config_typing s f es ts) : res_ppi :=
   run_multi_step_ppi fuel (@make_ppi_cfg hs s f es ts Htype).
@@ -212,7 +225,7 @@ Definition sizeof_cfgt {s f es ts} (H: config_typing s f es ts) : N :=
 
 Definition sizeof_ppi (cfg_res: res_ppi) : N :=
   match cfg_res with
-  | RSP_cfg _ _ _ _ _ H =>
+  | RSP_cfg _ _ _ _ _ H _ =>
       sizeof_cfgt H
   | _ => 0
   end.
