@@ -112,20 +112,35 @@ Proof.
   by apply IH in Hred => //=.
 Defined.
 
-  
+(* Simpler instances for label and frame contexts *)
+#[refine, export]
+Instance list_label_ctx_eval : eval_ctx (list label_ctx) :=
+  {| ctx_fill := (@list_ctx_eval label_ctx _).(ctx_fill);
+    ctx_frame_mask := fmask0;
+    ctx_frame_cond := fcond0;
+    |}.
+Proof.
+  elim => //.
+  move => [lk [lvs les] lces] ctxs' IH hs s f es hs' s' f' es' _ Hred /=.
+  rewrite /fmask0 in Hred.
+  rewrite /label_ctx_fill /=.
+  apply IH => //.
+  rewrite /fmask0.
+  eapply r_label with (lh := LH_rec nil lk lces (LH_base (rev lvs) les) nil); eauto => //; by rewrite /label_ctx_fill /= cats0.
+Defined.
+
 Lemma ctx_frame_cond_list_label: forall (lcs: list label_ctx) f,
   ctx_frame_cond_list lcs f f.
 Proof.
   by elim.
 Qed.
 
-
 (* Frame context: [::AI_frame FC_arity FC_frame [FC_labs [FC_seq [_] ]])
    Note that the outermost frame is technically only a framestate as stated in the 2.0 spec.
 *)
 Record frame_ctx: Type :=
   { FC_arity: nat;
-    FC_labs: label_ctx;
+    FC_labs: list label_ctx;
     FC_frame: frame;
   }.
 
@@ -150,8 +165,9 @@ Instance frame_ctx_eval: eval_ctx frame_ctx :=
 Proof.
   move => [lk llabs lf] hs s f es hs' s' f' es' /= <- Hred.
   apply r_frame.
-  apply (list_ctx_eval label_ctx).ctx_reduce.
-  eapply r_label with (lh := LH_base (rev ls_vs) ls_es); eauto => //=; try by rewrite -cat1s.
+  apply (list_label_ctx_eval).(ctx_reduce) => /=.
+  - by elim llabs.
+  - by rewrite/fmask0.
 Defined.
 
 Lemma ctx_frame_cond_list_frame: forall (lcs: list frame_ctx) f,
@@ -173,23 +189,6 @@ Proof.
   by elim.
 Qed.
   
-(* Simpler instances for label and frame contexts *)
-#[refine, export]
-Instance list_label_ctx_eval : eval_ctx (list label_ctx) :=
-  {| ctx_fill := (@list_ctx_eval label_ctx _).(ctx_fill);
-    ctx_frame_mask := fmask0;
-    ctx_frame_cond := fcond0;
-    |}.
-Proof.
-  elim => //.
-  move => [lk [lvs les] lces] ctxs' IH hs s f es hs' s' f' es' _ Hred /=.
-  rewrite /fmask0 in Hred.
-  rewrite /label_ctx_fill /=.
-  apply IH => //.
-  rewrite /fmask0.
-  eapply r_label with (lh := LH_rec nil lk lces (LH_base (rev lvs) les) nil); eauto => //; by rewrite /label_ctx_fill /= cats0.
-Defined.
-
 #[refine, export]
 Instance list_frame_ctx_eval : eval_ctx (list frame_ctx) :=
   {| ctx_fill := (@list_ctx_eval frame_ctx _).(ctx_fill);
@@ -204,13 +203,13 @@ Proof.
   case => //.
   move => ctx ctxs'; move: ctxs' ctx.
   elim => //.
-  - move => [lk [lvs les] lf] hs s f es hs' s' f' es' <- /=Hred /=.
+  - move => [lk llabs lf] hs s f es hs' s' f' es' <- /=Hred /=.
     apply r_frame.
-    by eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-  - move => ctx ctxs' IH [lk [lvs les] lf] hs s f es hs' s' f' es' <- Hred.
+    by apply (list_label_ctx_eval).(ctx_reduce).
+  - move => ctx ctxs' IH [lk llabs lf] hs s f es hs' s' f' es' <- Hred.
     apply IH => //=.
     apply r_frame.
-    by eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
+    by apply (list_label_ctx_eval).(ctx_reduce).
 Defined.
 
 #[refine, export]
@@ -239,10 +238,11 @@ Proof.
   case => //.
   move => ctx ctxs'; move: ctxs' ctx.
   elim => //.
-  - move => [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred /=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
+  - move => [lf les] hs s f es hs' s' f' es' <- /=Hred /=.
     apply r_frame.
-    by apply (list_label_ctx_eval.(ctx_reduce)).
+    apply (list_label_ctx_eval.(ctx_reduce)) => //.
+    rewrite/ctx_frame_mask /=/fmask0.
+    by apply Hred.
   - move => ctx ctxs' IH [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred.
     apply IH => //=.
     eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
