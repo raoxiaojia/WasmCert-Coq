@@ -141,7 +141,7 @@ Proof.
 Defined.
 
 (* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post 
-   Note that the outermost frame  is technically only a framestate as stated in the 2.0 spec.
+   Note that the outermost frame is technically only a framestate as stated in the 2.0 spec.
 *)
 Record frame_ctx: Type :=
   { FC_arity: nat;
@@ -226,20 +226,14 @@ Definition oe_noframe (oe: option administrative_instruction) :=
   end.
  *)
 
-Definition valid_ccs (ccs: list frame_ctx): bool :=
-  match ccs with
+(* A valid frame context must contain at least one frame, and the outermost frame cannot have further instructions. *)
+Definition valid_fcs (fcs: list frame_ctx): bool :=
+  match fcs with
   | nil => false
   | cc0 :: _ =>
-      let fc := last cc0 ccs in
+      let fc := last cc0 fcs in
       fc.(FC_seq) == (nil, nil)
   end.
-
-Lemma valid_ccs_change_labs fc labs labs' ccs:
-  valid_ccs ((fc, labs) :: ccs) ->
-  valid_ccs ((fc, labs') :: ccs).
-Proof.
-  by destruct ccs => /=.
-Qed.
 
 (* The canonical form of a context config tuple: 
    - The ves split has to be valid;
@@ -248,7 +242,7 @@ Qed.
 Definition valid_cfg_ctx (cfg: cfg_tuple_ctx) : Prop :=
   match cfg with
   | (_, cc, sc, oe) =>
-      valid_ccs cc /\ valid_split sc oe
+      valid_fcs cc /\ valid_split sc oe
   end.
 
 Definition olist {T: Type} (ot: option T) : list T :=
@@ -283,7 +277,7 @@ Qed.
 
 (* Convert frame state to frame context *)
 Definition to_frame_ctx (f: frame) (n: nat) :=
-  Build_frame_ctx nil n f nil.
+  Build_frame_ctx n f nil.
 
 (* Tail recursive version of split_vals_e, also producing the reversed vs list used in the contexts *)
 Fixpoint split_vals'_aux (ves: list administrative_instruction) (acc: list value) : (list value) * (list administrative_instruction) :=
@@ -344,34 +338,49 @@ Proof.
     by rewrite cats0 revK.
 Qed.
 
-Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list frame_ctx)) {measure (fun '(ves, ccs) => ais_measure ves)} : option (list frame_ctx * seq_ctx * option administrative_instruction) :=
-  let '(ves, ccs) := ves_acc in
+Definition push_label_fctx (lab: label_ctx) (fctx: frame_ctx) : frame_ctx :=
+  match fctx with
+  | Build_frame_ctx k f labs sctx =>
+      Build_frame_ctx k f (lab :: labs) sctx
+  end.
+
+Lemma valid_ctx_push_label: forall fc fc' fcs lab,
+    push_label_fctx lab fc = fc' ->
+    valid_fcs (fc :: fcs) ->
+    valid_fcs (fc' :: fcs).
+Proof.
+  move => fc fc' fcs lab; destruct fcs => //.
+  destruct fc => //=; by intros; subst.
+Qed.
+  
+Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list frame_ctx)) {measure (fun '(ves, fcs) => ais_measure ves)} : option (list frame_ctx * seq_ctx * option administrative_instruction) :=
+  let '(ves, fcs) := ves_acc in
   match split_vals' ves with
   | (vs, es) =>
       match es with
-      | nil => Some (ccs, (vs, nil), None)
+      | nil => Some (fcs, (vs, nil), None)
       | e :: es' =>
           match e with
           | AI_label k ces es =>
-              match ccs with
+              match fcs with
               | nil => None
-              | (fc, lcs) :: ccs' =>
-                  ctx_decompose_aux (es, (fc, (Build_label_ctx vs k ces es') :: lcs) :: ccs')
+              | fc :: fcs' =>
+                  ctx_decompose_aux (es, (push_label_fctx (Build_label_ctx k ces (vs, es')) fc) :: fcs')
               end
           | AI_frame k f es =>
-              ctx_decompose_aux (es, (Build_frame_ctx vs k f es', nil) :: ccs)
+              ctx_decompose_aux (es, (Build_frame_ctx k f nil (vs, es')) :: fcs)
           | _ => (* In this case, we know that e cannot be const due to a lemma *)
-              Some (ccs, (vs, es'), Some e)
+              Some (fcs, (vs, es'), Some e)
           end
       end
   end.
 Proof.
-  { move => [ves acc] ves' ccs' vs ? e es' k ces es ?? Hsplit cc ccs fc lcs ?? [? ?]; subst.
+  { move => [ves acc] ves' fcs' vs ? e es' k ces es ?? Hsplit fc fcs ? [? ?]; subst.
     apply split_vals'_spec, split_vals_inv in Hsplit as ->.
     rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
     by lias.
   }
-  { move => [ves acc] ves' ccs' [? ?] vs ? e es' k f ??? Hsplit; subst.
+  { move => [ves acc] ves' fcs' [? ?] vs ? e es' k f ??? Hsplit; subst.
     apply split_vals'_spec, split_vals_inv in Hsplit as ->.
     rewrite ais_measure_cat ais_measure_cons /ais_measure => /=.
     by lias.
@@ -402,7 +411,7 @@ Proof.
   destruct es as [ | e es'] => //.
   destruct e => //.
   (* Label *)
-  - destruct acc as [ | [fc lcs] ccs'] => //.
+  - destruct acc as [ | [fc lcs] fcs'] => //.
     split => //.
     by repeat eexists.
   - eapply IH in Hdecomp as [Hcontra ?]; eauto; first by inversion Hcontra.
@@ -427,10 +436,10 @@ Definition ctx_update_nconst (acc: list frame_ctx) (sctx: seq_ctx) e :=
   | AI_label k ces es =>
       match acc with
       | nil => None 
-      | (fc, lcs) :: ccs' => ctx_decompose_aux (es, (fc, (Build_label_ctx vs k ces es0) :: lcs) :: ccs')
+      | fc :: fcs' => ctx_decompose_aux (es, (push_label_fctx (Build_label_ctx k ces (vs, es0)) fc) :: fcs')
       end
   | AI_frame k f es =>
-      ctx_decompose_aux (es, (Build_frame_ctx vs k f es0, nil) :: acc)
+      ctx_decompose_aux (es, (Build_frame_ctx k f nil (vs, es0)) :: acc)
   | _ => Some (acc, (vs, es0), Some e)
   end.
 
@@ -457,21 +466,21 @@ Definition ctx_update (acc: list frame_ctx) (sctx: seq_ctx) (oe: option administ
   end.
 
 
-Lemma ctx_decompose_valid_ccs_aux: forall ves acc ccs sctx oe,
-    valid_ccs acc ->
-    ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
-    valid_ccs ccs.
+Lemma ctx_decompose_valid_fcs_aux: forall ves acc fcs sctx oe,
+    valid_fcs acc ->
+    ctx_decompose_aux (ves, acc) = Some (fcs, sctx, oe) ->
+    valid_fcs fcs.
 Proof.
   move => ves.
   remember (ais_measure ves) as m.
   move: Heqm.
   move: ves.
   induction m as [m' IH] using (lt_wf_ind).
-  move => ves ? acc ccs sctx oe Hnil Hdecomp; subst m'.
+  move => ves ? acc fcs sctx oe Hnil Hdecomp; subst m'.
   rewrite ctx_decompose_aux_equation in Hdecomp.
   destruct (split_vals' ves) as [vs es] eqn:Hsplit.
   apply split_vals'_spec in Hsplit.
-  destruct es as [ | e es']; first by injection Hdecomp as <- <- <-; unfold valid_ccs.
+  destruct es as [ | e es']; first by injection Hdecomp as <- <- <-; unfold valid_fcs.
   destruct e as
     [ b
     |
@@ -480,18 +489,18 @@ Proof.
     | addr
     | n ces es
     | n f es
-    ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_ccs).
-  - destruct acc as [ | [fc lcs] ccs'] => //.
+    ]; simpl in *; try by (injection Hdecomp as <- <- <-; unfold valid_fcs).
+  - destruct acc as [ | [fc lcs] fcs'] => //.
     eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
-    + by eapply valid_ccs_change_labs; eauto.
+    + by eapply valid_ctx_push_label; eauto.
   - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     + by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
     + by destruct acc.
 Qed.
 
-Lemma ctx_decompose_valid_aux: forall ves acc ccs sctx oe,
-    ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
+Lemma ctx_decompose_valid_aux: forall ves acc fcs sctx oe,
+    ctx_decompose_aux (ves, acc) = Some (fcs, sctx, oe) ->
     valid_split sctx oe.
 Proof.
   move => ves.
@@ -499,7 +508,7 @@ Proof.
   move: Heqm.
   move: ves.
   induction m as [m' IH] using (lt_wf_ind).
-  move => ves ? acc ccs sctx oe Hdecomp; subst m'.
+  move => ves ? acc fcs sctx oe Hdecomp; subst m'.
   rewrite ctx_decompose_aux_equation in Hdecomp.
   destruct (split_vals' ves) as [vs es] eqn:Hsplit.
   apply split_vals'_spec in Hsplit.
@@ -520,77 +529,77 @@ Proof.
     by apply split_vals_nconst in Hsplit.
   - injection Hdecomp as <- <- <- => /=.
     by apply split_vals_nconst in Hsplit.
-  - destruct acc as [ | [fc lcs] ccs'] => //.
+  - destruct acc as [ | [fc lcs] fcs'] => //.
     eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
   - eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->.
     by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
 Qed.
 
-Lemma ctx_decompose_valid_split: forall ves ccs sctx oe,
-    ctx_decompose ves = Some (ccs, sctx, oe) ->
+Lemma ctx_decompose_valid_split: forall ves fcs sctx oe,
+    ctx_decompose ves = Some (fcs, sctx, oe) ->
     valid_split sctx oe.
 Proof.
   intros.
   by eapply ctx_decompose_valid_aux; eauto.
 Qed.
 
-Lemma ctx_update_nconst_valid_ccs: forall sctx e ccs ccs' sctx' oe,
-    valid_ccs ccs ->
-    ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
-    valid_ccs ccs'.
+Lemma ctx_update_nconst_valid_fcs: forall sctx e fcs fcs' sctx' oe,
+    valid_fcs fcs ->
+    ctx_update_nconst fcs sctx e = Some (fcs', sctx', oe) ->
+    valid_fcs fcs'.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hnil Hupdate.
-  unfold ctx_update_nconst in Hupdate; unfold valid_ccs.
+  move => [vs es] e fcs fcs' [vs' es'] oe Hnil Hupdate.
+  unfold ctx_update_nconst in Hupdate; unfold valid_fcs.
   destruct e; first destruct b; try (injection Hupdate as <- <- <-; subst => //); try (by apply/orP; left).
   (* Label *)
-  - destruct ccs as [ | [fc lcs] ccs0] => //.
-    eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-    by eapply valid_ccs_change_labs; eauto.
-  - eapply ctx_decompose_valid_ccs_aux in Hupdate; eauto.
-    by destruct ccs.
+  - destruct fcs as [ | [fc lcs] fcs0] => //.
+    eapply ctx_decompose_valid_fcs_aux in Hupdate; eauto.
+    by eapply valid_ctx_push_label; eauto.
+  - eapply ctx_decompose_valid_fcs_aux in Hupdate; eauto.
+    by destruct fcs.
 Qed.
   
-Lemma ctx_update_nconst_valid: forall sctx e ccs ccs' sctx' oe,
+Lemma ctx_update_nconst_valid: forall sctx e fcs fcs' sctx' oe,
     ~ is_const e ->
-    ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
+    ctx_update_nconst fcs sctx e = Some (fcs', sctx', oe) ->
     valid_split sctx' oe.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hnconst Hupdate.
+  move => [vs es] e fcs fcs' [vs' es'] oe Hnconst Hupdate.
   unfold ctx_update_nconst in Hupdate.
   destruct e; try injection Hupdate as <- <- <-; subst => //; try by destruct b.
   (* Label *)
-  - destruct ccs as [ | [fc lcs] ccs0] => //.
+  - destruct fcs as [ | [fc lcs] fcs0] => //.
     by apply ctx_decompose_valid_aux in Hupdate.
   (* Frame *)
   - by apply ctx_decompose_valid_aux in Hupdate.
 Qed.
 
-Lemma ctx_update_valid_ccs: forall sctx ccs ccs' sctx' oe oe',
-    valid_ccs ccs ->
-    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
-    valid_ccs ccs'.
+Lemma ctx_update_valid_fcs: forall sctx fcs fcs' sctx' oe oe',
+    valid_fcs fcs ->
+    ctx_update fcs sctx oe = Some (fcs', sctx', oe') ->
+    valid_fcs fcs'.
 Proof.
-  move => [vs es] ccs ccs' [vs' es'] oe oe' Hnil Hupdate.
-  unfold ctx_update in Hupdate; unfold valid_ccs.
+  move => [vs es] fcs fcs' [vs' es'] oe oe' Hnil Hupdate.
+  unfold ctx_update in Hupdate; unfold valid_fcs.
   destruct oe as [e | ].
   - destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
     + destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
       destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
       apply split_vals'_spec, split_vals_nconst in Hsplit.
-      by apply ctx_update_nconst_valid_ccs in Hupdate => //.
-    + by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+      by apply ctx_update_nconst_valid_fcs in Hupdate => //.
+    + by apply ctx_update_nconst_valid_fcs in Hupdate => //.
   - destruct (split_vals' es) as [vs'' es''] eqn:Hsplit.
     destruct es'' as [ | e0 es'']; try by injection Hupdate as <- <- <-; subst => //; apply/orP; left.
     apply split_vals'_spec, split_vals_nconst in Hsplit.
-    by apply ctx_update_nconst_valid_ccs in Hupdate => //.
+    by apply ctx_update_nconst_valid_fcs in Hupdate => //.
 Qed.
 
-Lemma ctx_update_valid: forall sctx ccs ccs' sctx' oe oe',
-    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
+Lemma ctx_update_valid: forall sctx fcs fcs' sctx' oe oe',
+    ctx_update fcs sctx oe = Some (fcs', sctx', oe') ->
     valid_split sctx' oe'.
 Proof.
-  move => [vs es] ccs ccs' [vs' es'] oe oe' Hupdate.
+  move => [vs es] fcs fcs' [vs' es'] oe oe' Hupdate.
   unfold ctx_update in Hupdate.
   destruct oe as [e | ].
   - destruct (e_to_v_opt e) as [v | ] eqn:Hetov.
@@ -606,16 +615,16 @@ Proof.
     by apply ctx_update_nconst_valid in Hupdate => //.
 Qed.
 
-Lemma ctx_decompose_fill_aux: forall ves acc ccs sctx oe,
-    ctx_decompose_aux (ves, acc) = Some (ccs, sctx, oe) ->
-    ccs ⦃ sctx ⦃ olist oe ⦄ ⦄ = acc ⦃ ves ⦄.
+Lemma ctx_decompose_fill_aux: forall ves acc fcs sctx oe,
+    ctx_decompose_aux (ves, acc) = Some (fcs, sctx, oe) ->
+    fcs ⦃ sctx ⦃ olist oe ⦄ ⦄ = acc ⦃ ves ⦄.
 Proof.
   move => ves.
   remember (ais_measure ves) as m.
   move: Heqm.
   move: ves.
   induction m as [m' IH] using (lt_wf_ind).
-  move => ves ? acc ccs sctx oe Hdecomp; subst m'.
+  move => ves ? acc fcs sctx oe Hdecomp; subst m'.
   rewrite ctx_decompose_aux_equation in Hdecomp.
   destruct (split_vals' ves) as [vs es] eqn:Hsplit.
   apply split_vals'_spec in Hsplit.
@@ -632,7 +641,7 @@ Proof.
       | n f es
       ]; simpl in *; try by injection Hdecomp as <- <- <- => /=; apply split_vals_inv in Hsplit as ->.
     (* Label *)
-    + destruct acc as [ | [fc lcs] ccs']; first by inversion Hdecomp => /=.
+    + destruct acc as [ | [fc lcs] fcs']; first by inversion Hdecomp => /=.
       eapply IH in Hdecomp; eauto; apply split_vals_inv in Hsplit as ->; first by rewrite Hdecomp.
       by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
     (* Frame *)
@@ -640,32 +649,32 @@ Proof.
       by rewrite ais_measure_cat ais_measure_cons /ais_measure => /=; lias.
 Qed.
 
-Lemma ctx_decompose_fill_id: forall ves ccs sctx oe,
-    ctx_decompose ves = Some (ccs, sctx, oe) ->
-    ccs ⦃ sctx ⦃ olist oe ⦄ ⦄ = ves.
+Lemma ctx_decompose_fill_id: forall ves fcs sctx oe,
+    ctx_decompose ves = Some (fcs, sctx, oe) ->
+    fcs ⦃ sctx ⦃ olist oe ⦄ ⦄ = ves.
 Proof.
-  move => ves ccs sctx oe Hdecomp.
+  move => ves fcs sctx oe Hdecomp.
   by apply ctx_decompose_fill_aux in Hdecomp.
 Qed.
 
-Lemma ctx_update_nconst_fill: forall sctx e ccs ccs' sctx' oe,
-    ctx_update_nconst ccs sctx e = Some (ccs', sctx', oe) ->
-    ccs ⦃ sctx ⦃ [::e] ⦄ ⦄ = ccs' ⦃ sctx' ⦃ olist oe ⦄ ⦄.
+Lemma ctx_update_nconst_fill: forall sctx e fcs fcs' sctx' oe,
+    ctx_update_nconst fcs sctx e = Some (fcs', sctx', oe) ->
+    fcs ⦃ sctx ⦃ [::e] ⦄ ⦄ = fcs' ⦃ sctx' ⦃ olist oe ⦄ ⦄.
 Proof.
-  move => [vs es] e ccs ccs' [vs' es'] oe Hupdate.
+  move => [vs es] e fcs fcs' [vs' es'] oe Hupdate.
   unfold ctx_update_nconst in Hupdate.
   destruct e => //; try by injection Hupdate as <- <- <-; subst.
   (* Local *)
-  - destruct ccs as [ | [fc lcs] ccs0] => //.
+  - destruct fcs as [ | [fc lcs] fcs0] => //.
     by apply ctx_decompose_fill_aux in Hupdate.
   - by apply ctx_decompose_fill_aux in Hupdate.
 Qed.
   
-Lemma ctx_update_fill: forall sctx ccs ccs' sctx' oe oe',
-    ctx_update ccs sctx oe = Some (ccs', sctx', oe') ->
-    ccs ⦃ sctx ⦃ olist oe ⦄ ⦄ = ccs' ⦃ sctx' ⦃ olist oe' ⦄ ⦄.
+Lemma ctx_update_fill: forall sctx fcs fcs' sctx' oe oe',
+    ctx_update fcs sctx oe = Some (fcs', sctx', oe') ->
+    fcs ⦃ sctx ⦃ olist oe ⦄ ⦄ = fcs' ⦃ sctx' ⦃ olist oe' ⦄ ⦄.
 Proof.
-  move => [vs es] ccs ccs' [vs' es'] oe oe' Hupdate.
+  move => [vs es] fcs fcs' [vs' es'] oe oe' Hupdate.
   unfold ctx_update in Hupdate.
   destruct oe as [e | ].
   { destruct (e_to_v_opt e) as [v | ] eqn:Hetov; last by apply ctx_update_nconst_fill in Hupdate.
@@ -704,7 +713,7 @@ Qed.
 Fixpoint lh_to_ctx_aux {k} (lh: lholed k) (acc: list label_ctx): seq_ctx * (list label_ctx) :=
   match lh with
   | LH_base vs es => ((rev vs, es), acc)
-  | @LH_rec _ vs k ces lh' es => lh_to_ctx_aux lh' ((Build_label_ctx (rev vs) k ces es) :: acc)
+  | @LH_rec _ vs k ces lh' es => lh_to_ctx_aux lh' ((Build_label_ctx k ces (rev vs, es)) :: acc)
   end.
 
 Definition lh_to_ctx {k} (lh: lholed k) :=
@@ -713,7 +722,7 @@ Definition lh_to_ctx {k} (lh: lholed k) :=
 (* It's better to express the result as a sigma type for better computation. *)
 Fixpoint ctx_to_lh_aux {k} (lcs: list label_ctx) (acc: lholed k): {j & lholed j}.
 Proof.
-  destruct lcs as [ | [lvs lk lces les]].
+  destruct lcs as [ | [lk lces [lvs les]]].
   - exists k; by exact acc.
   - exact (ctx_to_lh_aux (S k) lcs (LH_rec (rev lvs) lk lces acc les)).
 Defined.
@@ -724,7 +733,7 @@ Definition ctx_to_lh (sc: seq_ctx) (lcs: list label_ctx) : {j & lholed j} :=
 Lemma ctx_to_lh_aux_len: forall lcs k (acc: lholed k),
     projT1 (ctx_to_lh_aux lcs acc) = k + length lcs.
 Proof.
-  induction lcs as [ | [lvs lk lces les]]; move => k acc => //=; first by rewrite addn0.
+  induction lcs as [ | [lk lces [lvs les]]]; move => k acc => //=; first by rewrite addn0.
   by rewrite IHlcs; lias.
 Qed.
 
@@ -739,7 +748,7 @@ Lemma lh_ctx_fill_aux: forall lcs k (acc: lholed k) es lf,
     lcs ⦃ (lfill acc es) ⦄ = lf ->
     lfill (projT2 (ctx_to_lh_aux lcs acc)) es = lf.
 Proof.
-  induction lcs as [ | [lvs lk lces les]]; move => k acc es lf Hctxfill => /=; first done.
+  induction lcs as [ | [lk lces [lvs les]]]; move => k acc es lf Hctxfill => /=; first done.
   apply IHlcs; simpl in *.
   by apply Hctxfill.
 Qed.
@@ -754,51 +763,36 @@ Qed.
 
 (** context reduction lemmas **)
 
-Lemma reduce_focus_ctx: forall hs s lcs ccs es hs' s' lcs' es' f0 fc fc',
-    fc.(FC_val) = fc'.(FC_val) ->
-    fc.(FC_post) = fc'.(FC_post) ->
+Lemma reduce_focus_ctx: forall hs s fcs es hs' s' es' f0 fc fc',
+    fc.(FC_seq) = fc'.(FC_seq) ->
     fc.(FC_arity) = fc'.(FC_arity) ->
-    reduce hs s fc.(FC_frame) (lcs ⦃ es ⦄) hs' s' fc'.(FC_frame) (lcs' ⦃ es' ⦄) ->
-    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs') :: ccs) ⦃ es' ⦄).
+    reduce hs s fc.(FC_frame) (fc.(FC_labs) ⦃ es ⦄) hs' s' fc'.(FC_frame) (fc'.(FC_labs) ⦃ es' ⦄) ->
+    reduce hs s f0 ((fc :: fcs) ⦃ es ⦄) hs' s' f0 ((fc' :: fcs) ⦃ es' ⦄).
 Proof.
-  intros ???????????? Heqval Heqpost Heqarity => /=.
-  rewrite - Heqpost -Heqval -Heqarity.
+  intros ?????????? Heqseq Heqarity => /=.
+  rewrite - Heqseq -Heqarity.
   move => Hred.
   apply (list_frame_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
-  eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
+  eapply r_label with (lh := LH_base (rev ((FC_seq fc).1)) (FC_seq fc).2) => /=; try by (f_equal; rewrite -cat1s; eauto).
   by apply r_frame.
 Qed.
 
-Lemma reduce_focus_ctx_id: forall hs s lcs ccs es hs' s' es' f0 fc fc',
-    fc.(FC_val) = fc'.(FC_val) ->
-    fc.(FC_post) = fc'.(FC_post) ->
+Lemma reduce_focus_ctx_id: forall hs s fcs es hs' s' es' f0 fc fc',
+    fc.(FC_seq) = fc'.(FC_seq) ->
     fc.(FC_arity) = fc'.(FC_arity) ->
+    fc.(FC_labs) = fc'.(FC_labs) ->
     reduce hs s fc.(FC_frame) es hs' s' fc'.(FC_frame) es' ->
-    reduce hs s f0 (((fc, lcs) :: ccs) ⦃ es ⦄) hs' s' f0 (((fc', lcs) :: ccs) ⦃ es' ⦄).
+    reduce hs s f0 ((fc :: fcs) ⦃ es ⦄) hs' s' f0 ((fc' :: fcs) ⦃ es' ⦄).
 Proof.
-  intros ??????????? Heqval Heqpost Heqarity Hred.
+  intros ?????????? Heqseq Heqarity Heqlabs Hred.
   apply reduce_focus_ctx => //.
+  rewrite <- Heqlabs.
   by apply (list_label_ctx_eval.(ctx_reduce)).
 Qed.
 
 
 (** Typing propagations for contexts **)
 Section Typing.
-
-Lemma fc_typing: forall (fc: frame_ctx) es s C0 tf,
-    e_typing s C0 (fc ⦃ es ⦄) tf ->
-    exists C ret,
-      frame_typing s fc.(FC_frame) C /\
-        fc.(FC_arity) = (length ret) /\
-        e_typing s (upd_return C (Some ret)) es (Tf nil ret).
-Proof.
-  move => fc es s C [ts1 ts2] /= Htype.
-  rewrite - cat1s in Htype.
-  unfold vs_to_es in Htype.
-  invert_e_typing.
-  inversion Hconjl0 as [??????? Hftype ? Hetype]; subst; clear Hconjl0.
-  by do 2 eexists; repeat split; eauto.
-Qed.
 
 Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
     e_typing s C0 (lc ⦃ es ⦄) tf ->
@@ -809,6 +803,7 @@ Lemma lc_typing: forall (lc: label_ctx) es s C0 tf,
 Proof.
   move => lc es s C [ts1 ts2] /= Htype.
   unfold label_ctx_fill in Htype.
+  simpl in Htype.
   invert_e_typing.
   by do 2 eexists; split; eauto.
 Qed.
@@ -836,48 +831,54 @@ Proof.
     by apply/eqP.
 Qed.
 
-Lemma cc_typing_exists: forall (cc: frame_ctx) es s C0 tf,
-    e_typing s C0 cc ⦃ es ⦄ tf ->
+Lemma fc_typing_exists: forall (fc: frame_ctx) es s C0 tf,
+    e_typing s C0 (fc ⦃ es ⦄) tf ->
     exists C ret labs ts2,
-      frame_typing s (cc.1).(FC_frame) C /\
-        (cc.1).(FC_arity) = (length ret) /\
+      frame_typing s fc.(FC_frame) C /\
+        fc.(FC_arity) = (length ret) /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
-  move => [fc lcs] es s C0 tf Htype.
-  apply fc_typing in Htype as [C [ret [? [? Htype]]]].
-  destruct lcs; first by do 4 eexists; repeat split; eauto.
-  apply lcs_typing_exists in Htype as [labs [ts1 [ts2 [Htype [Hagree Hconsume]]]]].
+  move => [k f labctxs sctx] es s C [ts1 ts2] Htype.
+  simpl in Htype.
+  rewrite - cat1s in Htype.
+  unfold vs_to_es in Htype.
+  invert_e_typing.
+  inversion Hconjl0 as [??????? Hftype ? Hetype]; subst; clear Hconjl0.
+  (* If there are no labels, there's nothing to prove. *)
+  destruct labctxs; first by do 4 eexists; repeat split; eauto.
+  (* Otherwise, apply the lcs exist lemma *)
+  apply lcs_typing_exists in Hetype as [labs [ts1' [ts2' [Htype [Hagree Hconsume]]]]].
   do 4 eexists; repeat split; eauto.
   by rewrite Hconsume in Htype => //; eauto.
 Qed.
 
-Lemma ccs_typing_exists: forall cc ccs es s C0 tf,
-    e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
+Lemma fcs_typing_exists: forall fc fcs es s C0 tf,
+    e_typing s C0 (fc :: fcs) ⦃ es ⦄ tf ->
     exists C ret labs ts2,
-      frame_typing s (cc.1).(FC_frame) C /\
-        (cc.1).(FC_arity) = length ret /\
+      frame_typing s fc.(FC_frame) C /\
+        fc.(FC_arity) = length ret /\
         e_typing s (upd_label (upd_return C (Some ret)) labs) es (Tf nil ts2).
 Proof.
-  move => cc ccs.
-  move: cc.
-  induction ccs as [| cc' ccs']; move => [fc lcs] es s C0 tf Htype.
-  - by eapply cc_typing_exists; eauto.
-  - apply IHccs' in Htype as [? [? [? [? [? [??]]]]]].
-    by eapply cc_typing_exists; eauto.
+  move => fc fcs.
+  move: fc.
+  induction fcs as [| fc' fcs']; move => fc es s C0 tf Htype.
+  - by eapply fc_typing_exists; eauto.
+  - apply IHfcs' in Htype as [? [? [? [? [? [??]]]]]].
+    by eapply fc_typing_exists; eauto.
 Qed.
 
-Lemma ccs_typing_focus: forall cc ccs es s C0 tf,
-    e_typing s C0 (cc :: ccs) ⦃ es ⦄ tf ->
+Lemma fcs_typing_focus: forall fc fcs es s C0 tf,
+    e_typing s C0 (fc :: fcs) ⦃ es ⦄ tf ->
     exists C ret labs tf,
-     e_typing s (upd_label (upd_return C ret) labs) (cc ⦃ es ⦄) tf.
+     e_typing s (upd_label (upd_return C ret) labs) (fc ⦃ es ⦄) tf.
 Proof.
-  move => cc ccs.
-  move: cc.
-  induction ccs as [| cc' ccs']; move => [fc lcs] es s C0 tf Htype.
+  move => fc fcs.
+  move: fc.
+  induction fcs as [| fc' fcs']; move => [k fc] labctxs sctx es s C0 tf Htype.
   - exists C0, (tc_return C0), (tc_labels C0), tf.
     by destruct C0.
-  - apply IHccs' in Htype as [? [? [? [? Htype]]]].
-    apply cc_typing_exists in Htype as [C [ret [lab [ts2 [Hftype [Hlen Htype]]]]]].
+  - apply IHfcs' in Htype as [? [? [? [? Htype]]]].
+    apply fc_typing_exists in Htype as [C [ret [lab [ts2 [Hftype [Hlen Htype]]]]]].
     exists C, (Some ret), lab, (Tf nil ts2).
     by apply Htype.
 Qed.
@@ -898,30 +899,30 @@ Proof.
   exists nil, nil, ts_values, ts3_comp0; by resolve_subtyping.
 Qed.
 
-Lemma e_typing_ops: forall (ccs: list frame_ctx) (sc: seq_ctx) es s C0 ts0,
-    e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
+Lemma e_typing_ops: forall (fcs: list frame_ctx) (sc: seq_ctx) es s C0 ts0,
+    e_typing s C0 (fcs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
     exists C' vts ts,
       values_typing s (rev sc.1) vts /\
       e_typing s C' es (Tf vts ts).
 Proof.
-  move => ccs [vs0 es0] es s C0 ts0.
-  destruct ccs as [ | cc' ccs']; move => Htype.
+  move => fcs [vs0 es0] es s C0 ts0.
+  destruct fcs as [ | cc' fcs']; move => Htype.
   - by eapply sc_typing_args in Htype as [? Htype]; eauto.
-  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+  - apply fcs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
     by eapply sc_typing_args in Htype as [? Htype]; eauto.
 Qed.
 
-Lemma e_typing_ops_local: forall cc (ccs: list frame_ctx) (sc: seq_ctx) es s C0 tf,
-    e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
+Lemma e_typing_ops_local: forall fc (fcs: list frame_ctx) (sc: seq_ctx) es s C0 tf,
+    e_typing s C0 ((fc :: fcs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
     exists C C' ret labs vts ts,
       values_typing s (rev sc.1) vts /\
-      frame_typing s (cc.1).(FC_frame) C /\
-        (cc.1).(FC_arity) = length ret /\
+      frame_typing s fc.(FC_frame) C /\
+        fc.(FC_arity) = length ret /\
         C' = (upd_label (upd_return C (Some ret)) labs) /\
         e_typing s C' es (Tf vts ts).
 Proof.
-  move => cc ccs [vs0 es0] es s C0 tf Htype.
-  - apply ccs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
+  move => cc fcs [vs0 es0] es s C0 tf Htype.
+  - apply fcs_typing_exists in Htype as [? [? [? [? [? [? Htype]]]]]].
     eapply sc_typing_args in Htype as [? [? [Hvstype Htype]]]; eauto.
     by do 7 eexists; eauto.
 Qed.
