@@ -59,12 +59,11 @@ Proof.
 Defined.
 
 
-(* Label context: rev LC_val ++ [::AI_label LC_arity LC_cont [_]) ++ LC_post; can be nested *)
+(* Label context: LC_seq ⦃ [::AI_label LC_arity LC_cont [_])] ⦄; can be nested *)
 Record label_ctx: Type :=
-  { LC_val: list value;
-    LC_arity: nat;
+  { LC_arity: nat;
     LC_cont: list administrative_instruction;
-    LC_post: list administrative_instruction;
+    LC_seq: seq_ctx;
   }.
 
 Definition label_ctx_eq_dec (v1 v2 : label_ctx): {v1 = v2} + {v1 <> v2}.
@@ -79,50 +78,15 @@ Definition eqlabel_ctx: Equality.axiom label_ctx_eqb :=
 Canonical Structure label_ctx_eqMixin := EqMixin eqlabel_ctx.
 Canonical Structure label_ctx_eqType := Eval hnf in EqType label_ctx label_ctx_eqMixin.
 
-Definition label_ctx_fill := (fun es ctx => (vs_to_es (LC_val ctx) ++ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ++ (LC_post ctx))).
+Definition label_ctx_fill := (fun es ctx => (LC_seq ctx) ⦃ [::AI_label (LC_arity ctx) (LC_cont ctx) es] ⦄).
 
 #[refine, export]
 Instance label_ctx_eval: eval_ctx label_ctx :=
   {| ctx_fill := label_ctx_fill;
      ctx_frame_mask := fmask0; ctx_frame_cond := fcond0 |}.
 Proof.
-  move => [lvs lk lces les] hs s f es hs' s' f' es' _ Hred.
-  eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
-Defined.
-
-
-(* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post 
-   Note that the outermost frame  is technically only a framestate as stated in the 2.0 spec.
-*)
-Record frame_ctx: Type :=
-  { FC_val: list value;
-    FC_arity: nat;
-    FC_frame: frame;
-    FC_post: list administrative_instruction;
-  }.
-
-Definition frame_ctx_eq_dec (v1 v2 : frame_ctx): {v1 = v2} + {v1 <> v2}.
-Proof.
-  by decidable_equality.
-Qed.
-
-Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
-Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
-  eq_dec_Equality_axiom frame_ctx_eq_dec.
-
-Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
-Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
-
-#[refine, export]
-Instance frame_ctx_eval: eval_ctx frame_ctx :=
-  {| ctx_fill := (fun es ctx => (vs_to_es (FC_val ctx) ++ [::AI_frame (FC_arity ctx) (FC_frame ctx) es] ++ (FC_post ctx)));
-    ctx_frame_mask := (fun ctx _ => ctx.(FC_frame));
-    ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
-  |}.
-Proof.
-  move => [lvs lk lf les] hs s f es hs' s' f' es' /= <- Hred /=.
-  eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-  by apply r_frame.
+  move => [lk lces lseq] hs s f es hs' s' f' es' _ Hred.
+  eapply r_label with (lh := LH_rec (rev (fst lseq)) lk lces (LH_base nil nil) (snd lseq)); eauto => //; by rewrite /label_ctx_fill /= cats0.
 Defined.
 
 (* A general instance for lists of evaluation contexts *)
@@ -155,25 +119,13 @@ Proof.
   by elim.
 Qed.
 
-Lemma ctx_frame_cond_list_frame: forall (lcs: list frame_ctx) f,
-  ctx_frame_cond_list lcs f f.
-Proof.
-  by elim.
-Qed.
-
-Definition closure_ctx : Type := frame_ctx * list label_ctx.
-
-Definition closure_ctx_fill es (cc: closure_ctx):=
-  match cc with
-  | (fc, lc) => fc ⦃ lc ⦃ es ⦄ ⦄
-  end.
-
 Lemma foldr_id {T1 T2: Type}: forall (l: list T1) (x: T2),
     foldr (fun _ => id) x l = x.
 Proof.
   by elim.
 Qed.
   
+
 (* Simpler instances for label and frame contexts *)
 #[refine, export]
 Instance list_label_ctx_eval : eval_ctx (list label_ctx) :=
@@ -182,14 +134,52 @@ Instance list_label_ctx_eval : eval_ctx (list label_ctx) :=
     ctx_frame_cond := fcond0;
     |}.
 Proof.
-  elim => //.
-  move => [lvs lk lces les] ctxs' IH hs s f es hs' s' f' es' _ Hred /=.
-  rewrite /fmask0 in Hred.
-  rewrite /label_ctx_fill /=.
-  apply IH => //.
-  rewrite /fmask0.
-  eapply r_label with (lh := LH_rec (rev lvs) lk lces (LH_base nil nil) les); eauto => //; by rewrite /label_ctx_fill /= cats0.
+  move => llabs hs s f es hs' s' f' es' Hfcond Hred.
+  apply (list_ctx_eval label_ctx_eval) => /=; first by elim llabs.
+  unfold fmask0 in *; simpl in *.
+  by repeat rewrite foldr_id => //.
 Defined.
+
+(* Frame context: rev FC_val ++ [::AI_frame FC_arity FC_frame [_]) ++ FC_post 
+   Note that the outermost frame  is technically only a framestate as stated in the 2.0 spec.
+*)
+Record frame_ctx: Type :=
+  { FC_arity: nat;
+    FC_frame: frame;
+    FC_labs: list label_ctx;
+    FC_seq: seq_ctx;
+  }.
+
+Definition frame_ctx_eq_dec (v1 v2 : frame_ctx): {v1 = v2} + {v1 <> v2}.
+Proof.
+  by decidable_equality.
+Qed.
+
+Definition frame_ctx_eqb (v1 v2: frame_ctx) : bool := frame_ctx_eq_dec v1 v2.
+Definition eqframe_ctx: Equality.axiom frame_ctx_eqb :=
+  eq_dec_Equality_axiom frame_ctx_eq_dec.
+
+Canonical Structure frame_ctx_eqMixin := EqMixin eqframe_ctx.
+Canonical Structure frame_ctx_eqType := Eval hnf in EqType frame_ctx frame_ctx_eqMixin.
+
+#[refine, export]
+Instance frame_ctx_eval: eval_ctx frame_ctx :=
+  {| ctx_fill := (fun es ctx => (FC_seq ctx) ⦃ [::AI_frame (FC_arity ctx) (FC_frame ctx) (FC_labs ctx) ⦃ es ⦄ ] ⦄ );
+    ctx_frame_mask := (fun ctx _ => ctx.(FC_frame));
+    ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
+  |}.
+Proof.
+  move => [lk lf llabs lseq] hs s f es hs' s' f' es' <- Hred.
+  apply seq_ctx_eval.(ctx_reduce) => //.
+  apply r_frame.
+  by apply list_label_ctx_eval.(ctx_reduce) => //=.
+Defined.
+
+Lemma ctx_frame_cond_list_frame: forall (lcs: list frame_ctx) f,
+  ctx_frame_cond_list lcs f f.
+Proof.
+  by elim.
+Qed.
 
 #[refine, export]
 Instance list_frame_ctx_eval : eval_ctx (list frame_ctx) :=
@@ -202,53 +192,9 @@ Instance list_frame_ctx_eval : eval_ctx (list frame_ctx) :=
     ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
     |}.
 Proof.
-  case => //.
-  move => ctx ctxs'; move: ctxs' ctx.
-  elim => //.
-  - move => [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred /=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_frame.
-  - move => ctx ctxs' IH [lvs lk lf les] hs s f es hs' s' f' es' <- /=Hred.
-    apply IH => //=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    by apply r_frame.
-Defined.
-
-#[refine, export]
-Instance closure_ctx_eval: eval_ctx closure_ctx :=
-  {| ctx_fill := closure_ctx_fill;
-     ctx_frame_mask := (fun '(fc, lc) _ => fc.(FC_frame));
-     ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
-  |}.
-Proof.
-  move => [fc lcs] hs s f es hs' s' f' es' <- Hred.
-  apply ctx_reduce => //.
-  by apply list_label_ctx_eval.(ctx_reduce) => //. 
-Defined.
-
-#[refine, export]
-Instance list_closure_ctx_eval : eval_ctx (list closure_ctx) :=
-  {| ctx_fill := (@list_ctx_eval closure_ctx _).(ctx_fill);
-    ctx_frame_mask := (fun ctxs f0 =>
-                         match ctxs with
-                         | nil => f0
-                         | (fc, lcs) :: ctxs' => fc.(FC_frame)
-                         end);
-    ctx_frame_cond := (fun _ f1 f2 => f1 = f2);
-    |}.
-Proof.
-  case => //.
-  move => ctx ctxs'; move: ctxs' ctx.
-  elim => //.
-  - move => [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred /=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    apply r_frame.
-    by apply (list_label_ctx_eval.(ctx_reduce)).
-  - move => ctx ctxs' IH [[lvs lk lf les] lcs] hs s f es hs' s' f' es' <- /=Hred.
-    apply IH => //=.
-    eapply r_label with (lh := LH_base (rev lvs) les); eauto => //=; try by rewrite -cat1s.
-    apply r_frame.
-    by apply (list_label_ctx_eval.(ctx_reduce)).
+  move => ctx hs s f es hs' s' f' es' <- Hred.
+  apply (list_ctx_eval _).(ctx_reduce); first by apply ctx_frame_cond_list_frame.
+  by destruct ctx.
 Defined.
 
 (* A configuration is now represented as (S; ⦃ ctxs ⦃ sc ⦃ option e ⦄ ⦄), with the hole holding at most one instruction which needs to be non-constant.
@@ -256,7 +202,7 @@ Defined.
    The contexts are represented in a reversed stack-like structure: the head of each list is the innermost context.
    The hole is allowed to be empty (in which case the inner context is then exitted on the next step). However, the sequence context sc should not hold any
    non-empty instruction in the continuation. *)
-Definition cfg_tuple_ctx: Type := store_record * (list closure_ctx) * seq_ctx * option administrative_instruction.
+Definition cfg_tuple_ctx: Type := store_record * (list frame_ctx) * seq_ctx * option administrative_instruction.
 
 Definition valid_hole (e: administrative_instruction) : bool :=
   (negb (is_const e)) &&
@@ -280,12 +226,12 @@ Definition oe_noframe (oe: option administrative_instruction) :=
   end.
  *)
 
-Definition valid_ccs (ccs: list closure_ctx): bool :=
+Definition valid_ccs (ccs: list frame_ctx): bool :=
   match ccs with
   | nil => false
   | cc0 :: _ =>
-      let '(fc, lcs) := last cc0 ccs in
-      (fc.(FC_val) == nil) && (fc.(FC_post) == nil)
+      let fc := last cc0 ccs in
+      fc.(FC_seq) == (nil, nil)
   end.
 
 Lemma valid_ccs_change_labs fc labs labs' ccs:
@@ -398,7 +344,7 @@ Proof.
     by rewrite cats0 revK.
 Qed.
 
-Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list closure_ctx)) {measure (fun '(ves, ccs) => ais_measure ves)} : option (list closure_ctx * seq_ctx * option administrative_instruction) :=
+Function ctx_decompose_aux (ves_acc: (list administrative_instruction) * (list frame_ctx)) {measure (fun '(ves, ccs) => ais_measure ves)} : option (list frame_ctx * seq_ctx * option administrative_instruction) :=
   let '(ves, ccs) := ves_acc in
   match split_vals' ves with
   | (vs, es) =>
@@ -475,7 +421,7 @@ Qed.
 
 (* Auxiliary definitions for maintaining the canonical decomposition during execution. These avoid the need to
    invoke split_vals again unless the hole itself is a const *)
-Definition ctx_update_nconst (acc: list closure_ctx) (sctx: seq_ctx) e :=
+Definition ctx_update_nconst (acc: list frame_ctx) (sctx: seq_ctx) e :=
   let '(vs, es0) := sctx in
   match e with
   | AI_label k ces es =>
@@ -488,7 +434,7 @@ Definition ctx_update_nconst (acc: list closure_ctx) (sctx: seq_ctx) e :=
   | _ => Some (acc, (vs, es0), Some e)
   end.
 
-Definition ctx_update (acc: list closure_ctx) (sctx: seq_ctx) (oe: option administrative_instruction) :=
+Definition ctx_update (acc: list frame_ctx) (sctx: seq_ctx) (oe: option administrative_instruction) :=
   match oe with
   | Some e =>
       match e_to_v_opt e with
@@ -818,7 +764,7 @@ Proof.
   intros ???????????? Heqval Heqpost Heqarity => /=.
   rewrite - Heqpost -Heqval -Heqarity.
   move => Hred.
-  apply (list_closure_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
+  apply (list_frame_ctx_eval.(ctx_reduce)) with (hs := hs) => //.
   eapply r_label with (lh := LH_base (rev (FC_val fc)) (FC_post fc)) => /=; try by (f_equal; rewrite -cat1s; eauto).
   by apply r_frame.
 Qed.
@@ -890,7 +836,7 @@ Proof.
     by apply/eqP.
 Qed.
 
-Lemma cc_typing_exists: forall (cc: closure_ctx) es s C0 tf,
+Lemma cc_typing_exists: forall (cc: frame_ctx) es s C0 tf,
     e_typing s C0 cc ⦃ es ⦄ tf ->
     exists C ret labs ts2,
       frame_typing s (cc.1).(FC_frame) C /\
@@ -952,7 +898,7 @@ Proof.
   exists nil, nil, ts_values, ts3_comp0; by resolve_subtyping.
 Qed.
 
-Lemma e_typing_ops: forall (ccs: list closure_ctx) (sc: seq_ctx) es s C0 ts0,
+Lemma e_typing_ops: forall (ccs: list frame_ctx) (sc: seq_ctx) es s C0 ts0,
     e_typing s C0 (ccs ⦃ sc ⦃ es ⦄ ⦄) (Tf nil ts0) ->
     exists C' vts ts,
       values_typing s (rev sc.1) vts /\
@@ -965,7 +911,7 @@ Proof.
     by eapply sc_typing_args in Htype as [? Htype]; eauto.
 Qed.
 
-Lemma e_typing_ops_local: forall cc (ccs: list closure_ctx) (sc: seq_ctx) es s C0 tf,
+Lemma e_typing_ops_local: forall cc (ccs: list frame_ctx) (sc: seq_ctx) es s C0 tf,
     e_typing s C0 ((cc :: ccs) ⦃ sc ⦃ es ⦄ ⦄) tf ->
     exists C C' ret labs vts ts,
       values_typing s (rev sc.1) vts /\
