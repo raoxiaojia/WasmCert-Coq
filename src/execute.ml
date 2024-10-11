@@ -169,6 +169,7 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
   
   match run_v_init_with_frame s f_invocation es_invocation with
   | cfg_invocation -> 
+    let start_time = Sys.time() in
     let* res = eval_cfg 1 hs cfg_invocation in
     begin match res with
     | Some (hs', s', _) ->
@@ -191,19 +192,14 @@ let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
           match res with
           | Some (_, _, vs) -> pp_values vs
           | None -> "");
+        Printf.printf "Execution time: %fs\n" (Sys.time() -. start_time);
         if error_code_on_crash && (match res with None -> true | Some _ -> false) then exit 1
         else pure ()
       end
     | None -> Printf.printf "Invocation failed"; pure ()
     end
 
-
-
-
-
-  
-
-(* TODO: update the interactive to use the context-optimised version as well *)
+(* Update the interactive to use the context-optimised version as well *)
 let instantiate_interpret verbosity error_code_on_crash m name =
   let* hs_s_f_es =
     TopHost.from_out (
