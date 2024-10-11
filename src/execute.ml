@@ -183,7 +183,8 @@ let interpret verbosity error_code_on_crash sies (name: string) =
       print_step_header gen ;
       debug_info verbosity intermediate
         (fun _ -> pp_res_tuple_except_store_typed cfg_res);
-      print_endline(string_of_int ppi_size);
+      debug_info verbosity intermediate 
+        (fun _ -> (string_of_int ppi_size));
         
       debug_info verbosity stage
         (fun _ -> "Size of proof term : " ^ string_of_int (int_of_N (sizeof_ppi cfg_res)));
@@ -210,7 +211,7 @@ let interpret verbosity error_code_on_crash sies (name: string) =
       | Extract.RSP_terminal (es, p) ->
         begin match is_const_list es with
         | Some vs -> 
-          debug_info verbosity result ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\n maximum/average proof size = " ^ string_of_int max_size ^ "/" ^ string_of_float ((float_of_int total_size) /. (float_of_int gen)) ^ "\n");
+          debug_info verbosity result ~style:green (fun _ -> "success after " ^ string_of_int gen ^ " steps\nmaximum/average proof size = " ^ string_of_int max_size ^ "/" ^ string_of_float ((float_of_int total_size) /. (float_of_int gen)) ^ "\n");
           pure (Some vs)
         | None -> 
           debug_info verbosity result ~style:red (fun _ -> "termination with a non-value\n"); 
