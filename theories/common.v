@@ -1,5 +1,4 @@
 (** Common useful definitions **)
-(* (C) M. Bodin - see LICENSE.txt *)
 
 From Coq Require Import Lia Wf_nat.
 From mathcomp Require Import ssreflect ssrnat ssrbool seq eqtype.
@@ -688,15 +687,6 @@ Lemma Forall_rev A (P : A -> Prop) (l : list A) (F : Forall P l) : Forall P (rev
 Proof.
   rewrite -(cats0 (rev l)). apply: Forall_catrev => //. by apply: Forall_nil.
 Defined.
-
-(* FIXME: There are too many opaque things there: I’m afraid that this is not provable.
-Lemma Forall_catrevE : forall A (P : A -> Prop) l1 l2 (F1 : Forall P l1) (F2 : Forall P l2),
-  Forall_catrev F1 F2 = Forall_cat (Forall_rev F1) F2.
-Proof.
-  move=> A P l1 + F1. induction F1 => l2 F2.
-  - rewrite/Forall_rev /eq_rect => /=.
-Qed.
-*)
 
 Lemma max_to_list A (l : seq A) (F : Forall _ l) :
   max F = foldr maxn 0 (to_list F).

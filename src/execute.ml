@@ -131,6 +131,7 @@ let repl verbosity sies (name : string) =
 *)
 
 let invocation_interpret verbosity error_code_on_crash hsfes (name: string) =
+  debug_info verbosity result (fun _ -> "Executing...\n");
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in

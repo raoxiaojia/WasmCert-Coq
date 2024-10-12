@@ -793,8 +793,6 @@ Proof.
     subst.
     repeat eexists.
     injection HF. move => H1 H2. subst. clear HF.
-    (* TODO: Use mem_ax_length_constant_update to prove this after porting in the 
-         parameterized memory branch *)
     unfold memory_list.mem_update in H1.
     destruct (pos + N.of_nat n1 <? N.of_nat (length (memory_list.ml_data m3)))%N eqn:HMemSize => //=.
     injection H1. move => H2. clear H1. subst.

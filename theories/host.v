@@ -1,12 +1,8 @@
 (** Axiomatisation of the host. **)
-(* (C) M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From Wasm Require Import common datatypes operations typing.
 From ExtLib Require Import Structures.Monad.
-
-(* XXX unused? *)
-(* Import Monads. *)
 
 Set Implicit Arguments.
 
@@ -79,14 +75,6 @@ Section Parameterised.
 Context `{ho: host}.
 
 Variable ehost : executable_host.
-
-(* TODO. What we really need is the property with the interactive tree interpretation.
-(** Relation between [host] and [executable_host]. **)
-Definition host_spec :=
-  forall st t h vs st' r,
-    host_apply ehost st t h vs = Some (st', r) -> (* FIXME: under the [host_event] monad! *)
-    host_application host st t h vs st' r.
-*)
 
 End Parameterised.
 

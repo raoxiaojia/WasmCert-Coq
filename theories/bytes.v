@@ -1,5 +1,4 @@
 (** Definition of bytes **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 Require Import common.
@@ -56,11 +55,9 @@ Definition msbyte (bs : bytes) : option byte :=
   last_error bs.
 
 Definition compcert_byte_of_byte (b : Byte.byte) : byte :=
-  (* TODO: this is not great *)
   encode (Byte.to_nat b).
 
 Definition byte_of_compcert_byte (b : byte) : Byte.byte :=
-  (* TODO: is that correct? *)
   match Byte.of_nat (BinInt.Z.to_nat b.(Byte.intval)) with
   | None => Byte.x00
   | Some b' => b'
@@ -70,7 +67,6 @@ Declare Scope byte_scope.
 Delimit Scope byte_scope with byte.
 Open Scope byte_scope.
 
-(* TODO: is there a better way to do this? With LTac? *)
 Notation "#A" := 10 : byte_scope.
 Notation "#B" := 11 : byte_scope.
 Notation "#C" := 12 : byte_scope.

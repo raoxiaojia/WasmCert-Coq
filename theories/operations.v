@@ -1,5 +1,4 @@
 (** Basic operations over Wasm datatypes **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrfun ssrnat ssrbool eqtype seq.
 From compcert Require lib.Floats.
@@ -124,8 +123,7 @@ Definition load_vec_bounds (lv_arg: load_vec_arg) (m_arg: memarg) : bool :=
 Definition load_vec_lane_bounds (width: width_vec) (m_arg: memarg) (x: laneidx) : bool :=
    (N.leb (N.pow 2 (memarg_align m_arg)) (width_to_n width / 8))%N &&
                          (N.ltb x (128 / width_to_n width)%N). 
-  
-(* TODO: We crucially need documentation here. *)
+
 
 Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option bytes :=
   if N.leb (N.add n (N.add off (N.of_nat l))) (mem_length m)
@@ -133,8 +131,8 @@ Definition load (m : meminst) (n : N) (off : static_offset) (l : nat) : option b
   else None.
 
 Definition sign_extend (s : sx) (l : nat) (bs : bytes) : bytes :=
-  (* TODO: implement sign extension *) bs.
-(* TODO
+  (* sign extension is not implemented for now *) bs.
+(* 
   let: msb := msb (msbyte bytes) in
   let: byte := (match sx with sx_U => O | sx_S => if msb then -1 else 0) in
   bytes_takefill byte l bytes
@@ -355,7 +353,7 @@ Definition app_unop_f (e : Wasm_float.type) (fop : unop_f) : Wasm_float.sort e -
   | UOF_sqrt => Wasm_float.float_sqrt mx
   end.
 
-(* TODO: implement new extendN_s numerics *)
+(* the 2.0 new extendN_s numerics is unimplemented currently *)
 Definition app_unop_extend (n: N) (v: value_num) :=
   v.
 
@@ -1070,7 +1068,6 @@ Fixpoint split_n (es : seq value) (n : nat) : seq value * seq value :=
     (e :: es', es'')
   end.
 
-(* TODO: eliminate the use of this *)
 Definition expect {A B : Type} (ao : option A) (f : A -> B) (b : B) : B :=
   oapp f b ao.
 
@@ -1235,7 +1232,6 @@ Definition cvt_trunc t s v : option value_num :=
   | _ => None
   end.
 
-(* TODO: implement the actual definition *)
 Definition cvt_trunc_sat (t: number_type) (s: option sx) (v: value_num) : option value_num :=
   Some (bitzero t).
 

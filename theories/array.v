@@ -1,5 +1,4 @@
 (** a naive functional representation of an array *)
-(* (C) J. Pichon - see LICENSE.txt *)
 
 (* this works well when there are few updates *)
 Module Type Index_Sig.

@@ -1,14 +1,11 @@
 (** Relational instantiation in the spec **)
 (* see https://webassembly.github.io/spec/core/exec/modules.html#exec-instantiation *)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From mathcomp Require Import ssreflect ssrbool ssrnat eqtype seq.
 From Wasm Require Import list_extra datatypes datatypes_properties
                         binary_format_parser operations
                          typing opsem type_checker memory memory_list.
 From Coq Require Import BinNat.
-
-(* TODO: Documentation *)
 
 Section Instantiation_spec.
   

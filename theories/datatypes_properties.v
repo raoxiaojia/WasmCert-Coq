@@ -1,5 +1,4 @@
 (** Properties about Wasm datatypes (mainly equality relations) **)
-(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Import bytes common.
 Require Export datatypes.
@@ -384,15 +383,6 @@ Definition administrative_instruction_ind' (P : administrative_instruction -> Pr
 
 (** Administrative instructions frequently come in lists.
   Here is the corresponding induction principle. **)
-(* TODO: rect'_build_list fails to generate wellformed definitions on newer versions
-   of Coq. Use manual versions for now *)
-(*
-Definition seq_administrative_instruction_rect' :=
-  ltac:(rect'_build_list administrative_instruction_rect).
-
-Definition seq_administrative_instruction_ind' (P : administrative_instruction -> Prop) :=
-  @seq_administrative_instruction_rect' P.
-*)
 
 Definition administrative_instruction_eq_dec : forall e1 e2 : administrative_instruction,
   {e1 = e2} + {e1 <> e2}.

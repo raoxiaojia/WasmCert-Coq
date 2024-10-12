@@ -1,5 +1,4 @@
 (** Common useful definitions **)
-(* (C) M. Bodin, J. Pichon - see LICENSE.txt *)
 
 Require Import common.
 From Coq Require ZArith ZArith.Int ZArith.BinInt ZArith.Zpower.
@@ -679,18 +678,6 @@ Proof.
   - move: wordsize_modulus. by lias.
 Qed.
 
-(* FIXME: stuff that we may want to prove. 
-Lemma popcnt_wordsize : forall i,
-  popcnt i = repr wordsize ->
-  i = repr 0.
-
-Lemma ctz_shl : forall i k,
-  ctz (shl i k) = min wordsize (ctz i + k).
-
-Lemma clz_shr : forall i k,
-  clz (shr i k) = min wordsize (clz i + k).
-*)
-
 (** The following definitions mirrors as close as possible the specification
   of the corresponding operation in
   https://webassembly.github.io/spec/core/exec/numerics.html
@@ -929,27 +916,6 @@ Definition ishr_s (i1 i2: T) : T :=
   let k := repr (unsigned i2 mod wordsize)%Z in
   shr i1 k.
 
-(* TODO
-(** Shift [i] by [k] bits, extended with the most significant bit of the original value. **)
-Definition shift_signed l k :=
-  if k is k.+1 then
-    if l is d :: l then
-      let: l := d :: d :: l (* TODO: Drop the last one. *) in
-      shift_signed l k
-    else l
-  else l.
-
-Definition ishr_s (i1 i2 : T) :=
-  let: k := unsigned i2 mod wordsize in
-  let: r := shift_signed (convert_to_bits i1) k in
-  (* TODO: convert back to a number. *)
-
-(* LATER
-Lemma ishr_s_shr : forall i1 i2,
-  ishr_s i1 i2 = shr i1 i2.
-*)
-*)
-
 Definition Tmixin : mixin_of T := {|
      int_zero := zero ;
      (** Bit operations **)
@@ -970,7 +936,7 @@ Definition Tmixin : mixin_of T := {|
      int_xor := ixor ;
      int_shl := ishl ;
      int_shr_u := ishr_u ;
-     int_shr_s := ishr_s (* TODO: check if this is correct *) ;
+     int_shr_s := ishr_s ;
      int_rotl := rol ;
      int_rotr := ror ;
      (** Equalities **)

@@ -116,7 +116,7 @@ Definition pp_i32 i :=
 Definition pp_i64 i :=
   pp_Z (Wasm_int.Int64.signed i).
 
-(* TODO: all this printing of floats business is highly dubious,
+(* all this printing of floats business is highly dubious,
    and completely untested *)
 Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
   match p with
@@ -128,7 +128,6 @@ Fixpoint bool_list_of_pos (acc : list bool) (p : BinNums.positive) :=
 Open Scope list.
 
 Fixpoint pp_bools (acc : list Byte.byte) (bools : list bool) : list Byte.byte :=
-  (* TODO: I am ashamed I wrote this *)
   match bools with
   | nil => acc
   | b1 :: b2 :: b3 :: b4 :: b5 :: b6 :: b7 :: b8 :: bools' =>
@@ -490,7 +489,6 @@ Definition pp_basic_instructions n bes :=
 Definition pp_funcinst (n : indentation) (fc : funcinst) : string :=
   match fc with
   | FC_func_native ft inst mfunc =>
-    (* TODO: show instance? *)
     indent n ("native " ++ pp_function_type ft ++ newline) ++
     indent n ("value types " ++ pp_value_types mfunc.(modfunc_locals) ++ newline) ++
     indent n ("body" ++ newline) ++
@@ -527,7 +525,6 @@ Fixpoint pp_administrative_instruction (n : indentation) (e : administrative_ins
     indent n (with_fg ae_style "end label" ++ newline)
   | AI_frame n f es =>
     indent n (with_fg ae_style "frame " ++ string_of_nat n ++ newline) ++
-    (* TODO: inst? *)
     indent n (with_fg ae_style "with values " ++ pp_values_hint_empty f.(f_locs) ++ newline) ++
     pp_administrative_instructions (n.+1) es ++
     indent n (with_fg ae_style "end frame" ++ newline)

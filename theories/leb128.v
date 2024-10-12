@@ -1,6 +1,5 @@
 (* LEB128 integer format *)
 (* https://en.wikipedia.org/wiki/LEB128 *)
-(* TODO: size bound *)
 Require Import Numbers.BinNums.
 Require Import NArith.BinNat.
 Require Import Coq.Init.Byte.

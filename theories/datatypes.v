@@ -1,7 +1,6 @@
 (** Definition of Wasm datatypes
     See https://webassembly.github.io/spec/core/syntax/index.html
     and https://webassembly.github.io/spec/core/exec/index.html **)
-(* (C) J. Pichon, M. Bodin - see LICENSE.txt *)
 
 From Wasm Require array.
 From Wasm Require Import common memory memory_list.
@@ -16,8 +15,6 @@ Unset Printing Implicit Defensive.
  
 
 (** * Basic Datatypes **)
-
-(* TODO: use a more faithful definition of u32. *)
 
 (** std-doc:
 Definitions are referenced with zero-based indices. Each class of definition has its own index space, as distinguished by the following classes.
@@ -87,7 +84,6 @@ Inductive value_vec : Set :=
   | VAL_vec128: unit -> value_vec
 .
 
-(* TODO: Unicode support? *)
 Definition name := list Byte.byte.
 
 Section Types.
@@ -318,27 +314,6 @@ Definition serialise_f32 (f : f32) : bytes :=
 Definition serialise_f64 (f : f64) : bytes :=
   common.Memdata.encode_int 8%nat (Integers.Int64.unsigned (numerics.Wasm_float.FloatSize64.to_bits f)).
 
-(*
-(* TODO: factor this out, following the `memory` branch *)
-Module Byte_Index <: array.Index_Sig.
-Definition Index := N.
-Definition Value := byte.
-Definition index_eqb := N.eqb.
-End Byte_Index.
-
-Module Byte_array := array.Make Byte_Index.
-
-Record data_vec : Set := {
-  dv_length : N;
-  dv_array : Byte_array.array;
-}.
-
-Record memory : Set := {
-  mem_data : memory_list;
-  mem_max_opt: option N; (* TODO: should be u32 *)
-}.
-*)
-
   
 Section Instructions.
   
@@ -429,7 +404,6 @@ Inductive relop : Set :=
   | Relop_f : relop_f -> relop
   .
 
-(* TODO: comment on the other cvtops *)
 Inductive cvtop : Set :=
   | CVO_wrap
   | CVO_extend

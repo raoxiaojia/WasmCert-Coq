@@ -1,6 +1,4 @@
 (** Parser for the binary Wasm format. **)
-(* (C) J. Pichon - see LICENSE.txt *)
-(* TODO: all the numeric stuff is in dire need of testing *)
 
 From Wasm Require Import datatypes datatypes_properties typing.
 From compcert Require Import Integers.
@@ -28,25 +26,19 @@ Definition exact_byte (b : byte) {n} : byte_parser byte n :=
       else None)
     anyTok.
 
-(* TODO: need to make sure these do the right thing *)
-
 Definition parse_u32_as_N {n} : byte_parser N n :=
   extract parse_unsigned n.
 
 Definition parse_u32_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr (BinIntDef.Z.of_N x)) <$> (extract parse_unsigned n).
 
 Definition parse_u32_zero_as_int32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
   exact_byte x00 $> Wasm_int.Int32.zero.
 
 Definition parse_s32 {n} : byte_parser Wasm_int.Int32.int n :=
-  (* TODO: limit size *)
   (fun x => Wasm_int.Int32.repr x) <$> (extract parse_signed n).
 
 Definition parse_s64 {n} : byte_parser Wasm_int.Int64.int n :=
-  (* TODO: limit size *)
   (fun x => Wasm_int.Int64.repr x) <$> (extract parse_signed n).
 
 Fixpoint k_plus_one_anyTok (k : nat) {n} : byte_parser (list byte) n :=
@@ -70,13 +62,12 @@ Definition parse_vec_length {n} : byte_parser nat n :=
 Fixpoint parse_vec_aux {B} {n} (f : byte_parser B n) (k : nat)
   : byte_parser (list B) n :=
   match k with
-  | 0 => (fun x => cons x nil) <$> f (* TODO: this is wrong in general, but OK with `vec`?!? *)
+  | 0 => (fun x => cons x nil) <$> f
   | S 0 => (fun x => cons x nil) <$> f
   | S k' => (cons <$> f) <*> parse_vec_aux f k'
   end.
 
 Definition parse_vec {B} {n} (f : byte_parser B n) : byte_parser (list B) n :=
-  (* TODO: this is vomit-inducingly bad, but I have no clue how to avoid this :-( *)
   (parse_u32_zero_as_int32 $> nil) <|>
   (parse_vec_length >>= (fun k => parse_vec_aux f k)).
 
@@ -623,7 +614,6 @@ Definition parse_be : [ byte_parser basic_instruction ] := fun n => _be n (langu
 Definition parse_bes_end_with_x0b : [ byte_parser (list basic_instruction) ] := fun n => _bes_end_with_x0b n (language n).
 
 Definition parse_expr {n} : byte_parser (list basic_instruction) n :=
-  (* TODO: is that right? *)
   parse_bes_end_with_x0b n.
 
 Definition parse_function_type {n} : byte_parser function_type n :=
@@ -726,7 +716,6 @@ Definition parse_code {n} : byte_parser module_func_without_type n :=
   guardM
     (fun sf =>
       match sf with
-      (* TODO: we are supposed to check that the size matches *)
       | (s, f) => (* if Nat.eqb s (func_size f) then *) Some f (* else None *)
       end)
     (parse_u32_as_nat <&> parse_code_func).
@@ -1081,7 +1070,6 @@ Definition parse_typesec_onwards {n} : byte_parser parsing_module n :=
 Definition module_of_parsing_module (m : parsing_module) : module := {|
   mod_types := m.(pmod_types);
   mod_funcs :=
-    (* TODO: what if these lists are of different length? *)
     List.map
       (fun '(a, (b, c)) =>
         {| modfunc_type := a; modfunc_locals := b; modfunc_body := c |})
