@@ -161,6 +161,7 @@ let repl verbosity sies (name : string) =
     |> (fun cb -> user_input "> " cb cfg0)
 *)
 let interpret verbosity error_code_on_crash sies (name: string) =
+  let start_time = Sys.time() in
   let print_step_header gen =
     debug_info verbosity intermediate ~style:bold
       (fun () -> Printf.sprintf "step %d:\n" gen) in
@@ -218,8 +219,7 @@ let interpret verbosity error_code_on_crash sies (name: string) =
           pure None
         end) in
   
-  let start_time = Sys.time() in
-  debug_info verbosity result ~style:yellow (fun _ -> "PPI Interpreter\n");
+  debug_info verbosity result ~style:yellow (fun _ -> "Executing type soundness interpreter\n");
   print_step_header 0 ;
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\n%s\n" (pp_res_tuple_except_store_typed cfg0));
