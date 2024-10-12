@@ -14,3 +14,6 @@ test-fib-rec:
 		echo "Executing $$file"; \
 		dune exec -- wasm_coq_interpreter $$file -r main; \
 	done
+	
+loc:
+	cloc theories/contexts.v theories/interpreter_ctx.v theories/type_progress.v
