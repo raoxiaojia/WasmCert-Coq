@@ -2466,14 +2466,14 @@ Theorem run_one_step'' hs s f ves e: (forall hs s f es, (run_step_measure es < S
     - destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
        (* Some j *)
       + destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:?.
-        -- (* Some j *)
-           remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v' eqn:?.
+       (* Some j *)
+        * remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v' eqn:?.
            apply <<hs, s, f, vs_to_es (v' :: ves)>>'.
            by apply reduce_current_memory with (j := j) (s_mem_s_j := s_mem_s_j).
-        -- (* None *)
-           apply RS''_error. by apply current_memory_error_jth with (j := j).
-      + (* None *)
-        apply RS''_error. by apply current_memory_error_smem => //.
+       (* None *)
+        * apply RS''_error. by apply current_memory_error_jth with (j := j).
+      (* None *)
+      + apply RS''_error. by apply current_memory_error_smem => //.
 
     * (* AI_basic BI_grow_memory *)
       destruct ves as [|v ves'] eqn:?;
@@ -2483,124 +2483,124 @@ Theorem run_one_step'' hs s f ves e: (forall hs s f es, (run_step_measure es < S
         try by (apply RS''_error; by eapply grow_memory_error_typeof => //).
       (* VAL_int32 c *)
       destruct (smem_ind s f.(f_inst)) as [j|] eqn:?.
-      + (* Some j *)
-        destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
-        -- (* Some s_mem_s_j *)
-           remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
+      (* Some j *)
+      + destruct (List.nth_error s.(s_mems) j) as [s_mem_s_j|] eqn:Heqsmem.
+        (* Some s_mem_s_j *)
+         * remember (mem_grow s_mem_s_j (Wasm_int.N_of_uint i32m c)) as mem'.
            destruct mem' as [mem''|].
-           ** (* Some mem'' *)
-              remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
+           (* Some mem'' *)
+           + remember (VAL_int32 (Wasm_int.int_of_Z i32m (Z.of_nat (mem_size s_mem_s_j)))) as v'.
               remember (upd_s_mem s (set_nth mem'' s.(s_mems) j mem'')) as s'.
               apply <<hs, s', f, (vs_to_es (v' :: ves'))>>'.
               by eapply reduce_grow_memory with (j := j) (s_mem_s_j := s_mem_s_j) (mem'' := mem'') => //.
-           ** (* None *)
-              apply <<hs, s, f, vs_to_es (VAL_int32 int32_minus_one :: ves')>>'.
+           (* None *)
+            + apply <<hs, s, f, vs_to_es (VAL_int32 int32_minus_one :: ves')>>'.
               by eapply reduce_grow_memory_failure with (j := j) (s_mem_s_j := s_mem_s_j).
-        -- (* None *)
-           apply RS''_error. by eapply grow_memory_error_jth with (j := j).
-      + (* None *)
-        apply RS''_error. by eapply grow_memory_error_smem => //.
+        (* None *)
+         * apply RS''_error. by eapply grow_memory_error_jth with (j := j).
+      (* None *)
+      + apply RS''_error. by eapply grow_memory_error_smem => //.
 
-    * (* AI_basic (BI_const _) *)
-      by exfalso.
+    (* AI_basic (BI_const _) *)
+    * by exfalso.
 
-    * (* AI_basic (BI_unop t op) *)
-      destruct ves as [|v ves'].
-      + (* [::] *)
-        apply RS''_error. by apply unop_error.
-      + (* v :: ves' *)
-        apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'.
+    (* AI_basic (BI_unop t op) *)
+    * destruct ves as [|v ves'].
+      (* [::] *)
+      + apply RS''_error. by apply unop_error.
+      (* v :: ves' *)
+      + apply <<hs, s, f, vs_to_es (app_unop op v :: ves')>>'.
         by apply reduce_unop.
 
-    * (* AI_basic (BI_binop t op) *)
-      destruct ves as [|v2 [|v1 ves']];
+    (* AI_basic (BI_binop t op) *)
+    * destruct ves as [|v2 [|v1 ves']];
         try by (apply RS''_error; apply binop_error_size).
       (* [:: v2, v1 & ves'] *)
       destruct (app_binop op v1 v2) as [v|] eqn:?.
-      + (* Some v *)
-        apply <<hs, s, f, vs_to_es (v :: ves')>>'.
+      (* Some v *)
+      + apply <<hs, s, f, vs_to_es (v :: ves')>>'.
         by apply reduce_binop.
-      + (* None *)
-        apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'.
+      (* None *)
+      + apply <<hs, s, f, (vs_to_es ves') ++ [:: AI_trap]>>'.
         by apply reduce_binop_trap.
 
-    * (* AI_basic (BI_testop T_i32 testop) *)
-      destruct ves as [|[c| | |] ves'] eqn:?;
+    (* AI_basic (BI_testop T_i32 testop) *)
+    * destruct ves as [|[c| | |] ves'] eqn:?;
         try by (apply RS''_error; by eapply testop_i32_error => //).
-      + (* [::] *)
-        apply RS''_error. by apply testop_error_0.
-      + (* VAL_int32 c :: ves' *)
-        apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i32t testop c)) :: ves')>>'.
+      (* [::] *)
+      + apply RS''_error. by apply testop_error_0.
+      (* VAL_int32 c :: ves' *)
+      + apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i32t testop c)) :: ves')>>'.
         by apply reduce_testop_i32.
 
-    * (* AI_basic (BI_testop T_i64 testop) *)
-      (* TODO un-nest this destruct? could make the 'try by' clearer *)
-      destruct ves as [|v ves'].
-      + (* [::] *)
-        apply RS''_error. by apply testop_error_0.
-      + (* v :: ves' *)
-        destruct v as [|c| |];
+    (* AI_basic (BI_testop T_i64 testop) *)
+    (* TODO un-nest this destruct? could make the 'try by' clearer *)
+    * destruct ves as [|v ves'].
+      (* [::] *)
+      + apply RS''_error. by apply testop_error_0.
+      (* v :: ves' *)
+      + destruct v as [|c| |];
           try by (apply RS''_error; by eapply testop_i64_error => //).
         (* VAL_int64 c *)
         apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (@app_testop_i i64t testop c)) :: ves')>>'.
         by eapply reduce_testop_i64.
 
-    * (* AI_basic (BI_testop T_f32 testop) *)
-      apply RS''_error. by apply testop_f32_error.
+    (* AI_basic (BI_testop T_f32 testop) *)
+    * apply RS''_error. by apply testop_f32_error.
 
-    * (* AI_basic (BI_testop T_f64 testop) *)
-      apply RS''_error. by apply testop_f64_error.
+    (* AI_basic (BI_testop T_f64 testop) *)
+    * apply RS''_error. by apply testop_f64_error.
 
-    * (* AI_basic (BI_relop t op) *)
-      destruct ves as [|v2 [|v1 ves']];
+    (* AI_basic (BI_relop t op) *)
+    * destruct ves as [|v2 [|v1 ves']];
           try by (apply RS''_error; apply relop_error_size).
       (* [:: v2, v1 & ves'] *)
       apply <<hs, s, f, vs_to_es (VAL_int32 (wasm_bool (app_relop op v1 v2)) :: ves')>>'.
       by apply reduce_relop.
 
-    * (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
-      destruct ves as [|v ves'];
+    (* AI_basic (BI_cvtop t2 CVO_convert t1 sx) *)
+    * destruct ves as [|v ves'];
         try by (apply RS''_error; apply cvtop_error_0).
       (* v :: ves' *)
       destruct (types_agree t1 v) eqn:Ht1.
-      + (* true *)
-        destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
-        -- (* Some v' *)
-           apply <<hs, s, f, vs_to_es (v' :: ves')>>'.
+      (* true *)
+      + destruct (cvt t2 sx v) as [v'|] eqn:Heqv'.
+        (* Some v' *)
+        -- apply <<hs, s, f, vs_to_es (v' :: ves')>>'.
            by apply reduce_cvtop_success.
-        -- (* None *)
-           apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
+        (* None *)
+        -- apply <<hs, s, f, vs_to_es ves' ++ [::AI_trap]>>'.
            by apply reduce_cvtop_trap.
-      + (* false *)
-        apply RS''_error. by eapply cvtop_error_types_disagree.
+      (* false *)
+      + apply RS''_error. by eapply cvtop_error_types_disagree.
 
-    * (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
-      destruct ves as [|v ves'];
+    (* AI_basic (BI_cvtop t2 CVO_reinterpret t1 sx) *)
+    * destruct ves as [|v ves'];
         try by (apply RS''_error; apply cvtop_error_0).
       destruct (types_agree t1 v) eqn:?.
-      + (* true *)
-        destruct sx eqn:Heqsx.
-        -- (* Some _ *)
-           apply RS''_error. by eapply cvtop_error_reinterpret_sx.
-        -- (* None *)
-           apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
+      (* true *)
+      + destruct sx eqn:Heqsx.
+        (* Some _ *)
+        -- apply RS''_error. by eapply cvtop_error_reinterpret_sx.
+        (* None *)
+        -- apply <<hs, s, f, (vs_to_es (wasm_deserialise (bits v) t2 :: ves'))>>'.
            by apply reduce_reinterpret.
-      + (* false *)
-        apply RS''_error. by eapply cvtop_error_types_disagree.
+      (* false *)
+      + apply RS''_error. by eapply cvtop_error_types_disagree.
 
-    * (* AI_trap *)
-      by exfalso.
+    (* AI_trap *)
+    * by exfalso.
 
-    * (* AI_invoke a *)
-      destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
-      + (* Some cl *)
-        destruct cl as [i [t1s t2s] ts es | [t1s t2s] cl'] eqn:?.
-        -- (* FC_func_native i (Tf t1s t2s) ts es *)
-           remember (length t1s) as n eqn:?.
+    (* AI_invoke a *)
+    * destruct (List.nth_error s.(s_funcs) a) as [cl|] eqn:?.
+      (* Some cl *)
+      + destruct cl as [i [t1s t2s] ts es | [t1s t2s] cl'] eqn:?.
+        (* FC_func_native i (Tf t1s t2s) ts es *)
+        -- remember (length t1s) as n eqn:?.
            remember (length t2s) as m eqn:?.
            destruct (length ves >= n) eqn:?.
-           ** (* true *)
-              destruct (split_n ves n) as [ves' ves''] eqn:?.
+           (* true *)
+           ** destruct (split_n ves n) as [ves' ves''] eqn:?.
               remember (n_zeros ts) as zs eqn:?.
               apply <<hs, s, f, vs_to_es ves'' ++ [::
                 AI_local
@@ -2609,114 +2609,114 @@ Theorem run_one_step'' hs s f ves e: (forall hs s f es, (run_step_measure es < S
                 [::AI_basic (BI_block (Tf [::] t2s) es)]
               ]>>'.
               by eapply reduce_invoke_native with (n := n) (ts := ts) (t1s := t1s).
-           ** (* false *)
-              apply RS''_error.
+           (* false *)
+           ** apply RS''_error.
               by eapply invoke_func_native_error_n with
                 (n := n) (t1s := t1s) (t2s := t2s) (i := i) (ts := ts) (es := es).
-        -- (* FC_func_host (Tf t1s t2s) cl' *)
-           remember (length t1s) as n eqn:?.
+        (* FC_func_host (Tf t1s t2s) cl' *)
+        -- remember (length t1s) as n eqn:?.
            remember (length t2s) as m eqn:?.
            destruct (length ves >= n) eqn:?.
-           ** (* true *)
-              destruct (split_n ves n) as [ves' ves''] eqn:?.
+           (* true *)
+           ** destruct (split_n ves n) as [ves' ves''] eqn:?.
               destruct (host_application_impl hs s (Tf t1s t2s) cl' (rev ves')) as [hs' [[s' rves]|]] eqn:?.
-              ++ (* (hs', Some (s', rves)) *)
-                 apply <<hs', s', f, vs_to_es ves'' ++ (result_to_stack rves)>>'.
+              (* (hs', Some (s', rves)) *)
+              ++ apply <<hs', s', f, vs_to_es ves'' ++ (result_to_stack rves)>>'.
                  by eapply reduce_invoke_host_success with
                    (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl') (ves' := ves').
-              ++ (* (hs', None) *)
-                 apply <<hs', s, f, vs_to_es ves'' ++ [::AI_trap]>>'.
+              (* (hs', None) *)
+              ++ apply <<hs', s, f, vs_to_es ves'' ++ [::AI_trap]>>'.
                  by eapply reduce_invoke_host_diverge with
                    (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl') (ves' := ves') (ves'' := ves'') => //.
-           ** (* false *)
-              apply RS''_error.
+           (* false *)
+           ** apply RS''_error.
               by eapply invoke_func_host_error_n with
                 (n := n) (t1s := t1s) (t2s := t2s) (cl' := cl').
-      + (* None *)
-        apply RS''_error. by apply invoke_host_error_ath.
+      (* None *)
+      + apply RS''_error. by apply invoke_host_error_ath.
 
-    * (* AI_label ln les es *)
-      destruct (es_is_trap es) eqn:?.
-      + (* true *)
-        apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
+    (* AI_label ln les es *)
+    * destruct (es_is_trap es) eqn:?.
+      (* true *)
+      + apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
         by apply reduce_label_trap.
-      + (* false *)
-        destruct (const_list es) eqn:?.
-        -- (* true *)
-           apply <<hs, s, f, vs_to_es ves ++ es>>'.
+      (* false *)
+      + destruct (const_list es) eqn:?.
+        (* true *)
+        -- apply <<hs, s, f, vs_to_es ves ++ es>>'.
            by apply reduce_label_const.
-        -- (* false *)
-          assert (run_step_measure es < S (run_one_step_measure (AI_label ln les es)))%coq_nat as Hmeasure.
+        (* false *)
+        -- assert (run_step_measure es < S (run_one_step_measure (AI_label ln les es)))%coq_nat as Hmeasure.
           { simpl. by rewrite run_step_measure_eq; lias. }
           specialize (run_step_aux hs s f es Hmeasure).
           destruct run_step_aux as
              [ Hv | Herr | n bvs H | rvs H | hs' s' f' es'] eqn:?.
-           ** (* RS'_value hs s f Hv *)
-              exfalso. by apply const_trap_contradiction with (es := es).
-           ** (* RS'_error hs Herr *)
-              apply RS''_error.
+           (* RS'_value hs s f Hv *)
+           ** exfalso. by apply const_trap_contradiction with (es := es).
+           (* RS'_error hs Herr *)
+           ** apply RS''_error.
               by apply label_error_rec.
-           ** (* RS'_break hs s f es n bvs *)
-              destruct n as [|n].
-              ++ (* 0 *)
-                 destruct (length bvs >= ln) eqn:?.
-                 --- (* true *)
-                     apply <<hs, s, f, vs_to_es ((take ln bvs) ++ ves) ++ les>>'.
+           (* RS'_break hs s f es n bvs *)
+           ** destruct n as [|n].
+              (* 0 *)
+              ++ destruct (length bvs >= ln) eqn:?.
+                 (* true *)
+                 --- apply <<hs, s, f, vs_to_es ((take ln bvs) ++ ves) ++ les>>'.
                      by apply reduce_label_break_rec.
-                 --- (* false *)
-                     apply RS''_error.
+                 (* false *)
+                 --- apply RS''_error.
                      by apply label_error_break_rec with (bvs := bvs).
-              ++ (* n.+1 *)
-                 apply break(n, bvs).
+              (* n.+1 *)
+              ++ apply break(n, bvs).
                  by apply label_break_rec.
-           ** (* RS'_return hs s f es rvs H *)
-              apply RS''_return with (rvs := rvs).
+           (* RS'_return hs s f es rvs H *)
+           ** apply RS''_return with (rvs := rvs).
               (* TODO move into a lemma? *)
               right. destruct H as [i [lh H]].
               by exists ln, les, es, i, lh => //.
-           ** (* RS'_normal hs s f es hs' s' f' es' *)
-              apply <<hs', s', f', vs_to_es ves ++ [:: AI_label ln les es']>>'.
+           (* RS'_normal hs s f es hs' s' f' es' *)
+           ** apply <<hs', s', f', vs_to_es ves ++ [:: AI_label ln les es']>>'.
               by apply reduce_label_rec.
 
-    * (* AI_local ln lf es *)
-      destruct (es_is_trap es) eqn:?.
-      + (* true *)
-        apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
+    (* AI_local ln lf es *)
+    * destruct (es_is_trap es) eqn:?.
+      (* true *)
+      + apply <<hs, s, f, vs_to_es ves ++ [::AI_trap]>>'.
         by apply reduce_local_trap.
-      + (* false *)
-        destruct (const_list es) eqn:?.
-        -- (* true *)
-           destruct (length es == ln) eqn:?.
-           ** (* true *)
-              apply <<hs, s, f, vs_to_es ves ++ es>>'.
+      (* false *)
+      + destruct (const_list es) eqn:?.
+        (* true *)
+        -- destruct (length es == ln) eqn:?.
+           (* true *)
+           ** apply <<hs, s, f, vs_to_es ves ++ es>>'.
               by apply reduce_local_const.
-           ** (* false *)
-              apply RS''_error.
+           (* false *)
+           ** apply RS''_error.
               by apply local_error_const_len.
-        -- (* false *)
-           assert (run_step_measure es < S (run_one_step_measure (AI_local ln lf es)))%coq_nat as Hmeasure.
+        (* false *)
+        -- assert (run_step_measure es < S (run_one_step_measure (AI_local ln lf es)))%coq_nat as Hmeasure.
            { simpl. by rewrite run_step_measure_eq; lias. }
            specialize (run_step_aux hs s lf es Hmeasure).
            destruct run_step_aux as
              [ Hv | Herr | n bvs | rvs H | hs' s' f' es'] eqn:?; clear Hmeasure.
-           ** (* RS'_value hs s f Hv *)
-              exfalso. by apply const_trap_contradiction with (es := es).
-           ** (* RS'_error hs Herr *)
-              apply RS''_error.
+           (* RS'_value hs s f Hv *)
+           ** exfalso. by apply const_trap_contradiction with (es := es).
+           (* RS'_error hs Herr *)
+           ** apply RS''_error.
               by apply local_error_rec.
-           ** (* RS'_break hs s f es n bvs *)
-              apply RS''_error.
+           (* RS'_break hs s f es n bvs *)
+           ** apply RS''_error.
               by apply local_error_break_rec with (n := n) (bvs := bvs).
-           ** (* RS'_return hs s f es rvs H *)
-              destruct (length rvs >= ln) eqn:?.
-              ++ (* true *)
-                 apply <<hs, s, f, vs_to_es (take ln rvs ++ ves)>>'.
+           (* RS'_return hs s f es rvs H *)
+           ** destruct (length rvs >= ln) eqn:?.
+              (* true *)
+              ++ apply <<hs, s, f, vs_to_es (take ln rvs ++ ves)>>'.
                  by apply reduce_local_return_rec.
-              ++ (* false *)
-                 apply RS''_error.
+              (* false *)
+              ++ apply RS''_error.
                  apply local_return_error with (rvs := rvs) => //.
-           ** (* RS'_normal hs s f es hs' s' f' es' *)
-              apply <<hs', s', f, vs_to_es ves ++ [:: AI_local ln f' es']>>'.
+           (* RS'_normal hs s f es hs' s' f' es' *)
+           ** apply <<hs', s', f, vs_to_es ves ++ [:: AI_local ln f' es']>>'.
               by apply reduce_local_rec.
 Defined.
 
@@ -2725,10 +2725,10 @@ Proof.
   (** Framing out constants. **)
   destruct (split_vals_e es) as [ves es'] eqn:Heqes.
   destruct es' as [|e es''] eqn:Heqes'.
-  * (* es' = [::] *)
-    apply RS'_value. by apply value_split_0 with (ves := ves).
-  * (* es' = e :: es'' *)
-    destruct (e_is_trap e) eqn:Htrap.
+  (* es' = [::] *)
+  * apply RS'_value. by apply value_split_0 with (ves := ves).
+  (* es' = e :: es'' *)
+  * destruct (e_is_trap e) eqn:Htrap.
   + destruct ((es'' != [::]) || (ves != [::])) eqn:?.
     -- apply <<hs, s, f, [:: AI_trap]>>.
        by apply reduce_trap with (e := e) (es'' := es'') (ves := ves).
@@ -2740,18 +2740,18 @@ Proof.
     rewrite Hmeasure in run_step_aux_rec.
     remember (run_one_step'' hs s f (rev ves) run_step_aux_rec Htrap Hconst) as r.
     destruct r as [| k bvs Hbr | rvs | hs' s' f' res].
-    -- (* RS''_error *)
-      apply RS'_error.
+    (* RS''_error *)
+    -- apply RS'_error.
       by eapply error_rec with (es' := es') (ves := ves) => //; subst es'.
-    -- (* RS''_break *)
-      apply RS'_break with (k := k) (bvs := bvs).
+    (* RS''_break *)
+    -- apply RS'_break with (k := k) (bvs := bvs).
       (* XXX why is there rev ves (unfoldfed v_to_e_list) in Hbr? *)
       by apply break_rec with (e := e) (es'' := es'') (ves := ves) => //.
-    -- (* RS''_return rvs *)
-      apply RS'_return with (rvs := rvs).
+    (* RS''_return rvs *)
+    -- apply RS'_return with (rvs := rvs).
       by eapply return_rec with (ves := ves) (e := e) (es'' := es'') => //.
-    -- (* RS''_normal hs' s' f' res *)
-      apply <<hs', s', f', (res ++ es'')>>.
+    (* RS''_normal hs' s' f' res *)
+    -- apply <<hs', s', f', (res ++ es'')>>.
       by eapply reduce_rec with (es' := es') (ves := ves); subst es'.
 Defined.
 
@@ -2823,12 +2823,12 @@ Proof.
   intros s C C' f vcs es t1s t2s lab ret hs Hetype ? Hitype ? Hstype HLFbr HLFret.
   destruct (run_step hs s f (v_to_e_list vcs ++ es))
     as [Hval | Herr | n bvs Hbr | rvs Hret | hs' s' f' es' Hr].
-  - (* RS'_value *)
-    left. unfold terminal_form.
+  (* RS'_value *)
+  - left. unfold terminal_form.
     destruct Hval as [Hconst | Htrap]; [left | right] => //.
     by move/es_is_trapP in Htrap.
-  - (* RS'_error *)
-    exfalso.
+  (* RS'_error *)
+  - exfalso.
     apply Herr.
     exists C, C', ret, lab, [::], t2s, [::].
     repeat split => //.
@@ -2836,15 +2836,15 @@ Proof.
     apply ety_a'; first by apply const_list_is_basic; apply v_to_e_const.
     rewrite to_b_v_to_e_is_bi_const. subst t1s.
     by apply bet_const'.
-  - (* RS'_break *)
-    exfalso.
+  (* RS'_break *)
+  - exfalso.
     destruct Hbr as [i [j [lh [Heqj [HLF Hbase]]]]].
     unfold vs_to_es in HLF.
     erewrite lfill_push_base_vs in HLF => //.
     eapply lfill_drop_vs in HLF => //; last by apply v_to_e_const.
     by apply HLFbr in HLF; lias.
-  - (* RS'_return *)
-    exfalso.
+  (* RS'_return *)
+  - exfalso.
     destruct Hret as [i [lh [HLF Hbase]]].
     erewrite lfill_push_base_vs in HLF => //.
     eapply lfill_drop_vs in HLF => //; last by apply v_to_e_const.
