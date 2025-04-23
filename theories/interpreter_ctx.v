@@ -218,6 +218,23 @@ Proof.
     by discriminate_size.
 Defined.
 
+Definition unrcons {T: Type} (l: list T) :=
+  match l with
+  | nil => None
+  | x :: l' =>
+      Some (belast x l', last x l)
+  end.
+
+Lemma unrcons_spec_Some : forall T x (l l': list T),
+    unrcons l = Some (l', x) ->
+    l = rcons l' x.
+Proof.
+  move => T x l l' Hunrcons.
+  destruct l => //; simpl in Hunrcons.
+  injection Hunrcons as <- <-.
+  by rewrite lastI.
+Qed.
+
 (** Return exits from the innermost frame and all label contexts.
     This can be implemented by exitting from one closure context.
  **)
@@ -226,33 +243,32 @@ Definition run_ctx_return: forall hs s ccs sc,
 Proof.  
   intros hs s ccs [vs es].
   get_cc ccs.
-  (* Return needs an additional frame to execute; otherwise it returns in a type error. *)
-  destruct ccs' as [| ccs' cc0] using last_ind.
-  (* Error *)
-  - by resolve_invalid_typing.
-  - clear IHccs'.
-    destruct fc as [lvs lk lf les].
-    destruct (lk <= length vs) eqn:Hvslen.
-    + apply <<hs, (s, rcons ccs' cc0, (take lk vs ++ lvs, les), None)>> => //=; last by destruct ccs'.
-      unfold reduce_ctx => /=.
-      rewrite rev_cons rev_rcons rcons_cons.
-      destruct cc0 as [[fvs0 fk0 ff0 fes0] lcs0].
-      rewrite revK rev_rcons revK.
-      apply (list_label_ctx_eval.(ctx_reduce)) => //=.
-      apply (list_closure_ctx_eval.(ctx_reduce)) => //.
-      resolve_reduce_ctx lvs les.
-      apply r_simple; eapply rs_return.
-      { by apply v_to_e_const. }
-      { by rewrite v_to_e_length length_is_size size_rev size_takel. }
-      { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop lk vs)) es)) (lcs := lcs) => /=.
-        repeat rewrite catA => /=.
-        rewrite v_to_e_cat rev_drop rev_take cat_take_drop.
-        by repeat rewrite - catA.
-      }
-    (* Not enough values *)
-    + resolve_invalid_typing.
-      assert (length extr1 = lk) as <-; first by injection Hretcons; destruct ccs'.
-      by discriminate_size.
+  (* Return needs an additional frame to execute; otherwise it results in a type error. *)
+  destruct (unrcons ccs') as [[ccs'' cc0]|] eqn:Hrcons; last by destruct ccs'; resolve_invalid_typing.
+  (* recover rcons split result *)
+  apply unrcons_spec_Some in Hrcons; subst.
+  destruct fc as [lvs lk lf les].
+  destruct (lk <= length vs) eqn:Hvslen.
+  - apply <<hs, (s, rcons ccs'' cc0, (take lk vs ++ lvs, les), None)>> => //=; last by destruct ccs''.
+    unfold reduce_ctx => /=.
+    rewrite rev_cons rev_rcons rcons_cons.
+    destruct cc0 as [[fvs0 fk0 ff0 fes0] lcs0].
+    rewrite revK rev_rcons revK.
+    apply (list_label_ctx_eval.(ctx_reduce)) => //=.
+    apply (list_closure_ctx_eval.(ctx_reduce)) => //.
+    resolve_reduce_ctx lvs les.
+    apply r_simple; eapply rs_return.
+    { by apply v_to_e_const. }
+    { by rewrite v_to_e_length length_is_size size_rev size_takel. }
+    { apply lh_ctx_fill_aux with (acc := (LH_base (rev (drop lk vs)) es)) (lcs := lcs) => /=.
+      repeat rewrite catA => /=.
+      rewrite v_to_e_cat rev_drop rev_take cat_take_drop.
+      by repeat rewrite - catA.
+    }
+  (* Not enough values *)
+  - resolve_invalid_typing.
+    assert (length extr1 = lk) as <-; first by injection Hretcons; destruct ccs''.
+    by discriminate_size.
 Defined.
 
 Definition run_ctx_invoke hs s ccs vs0 es0 a:

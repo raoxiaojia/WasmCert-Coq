@@ -24,6 +24,7 @@
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
     (wasm (and (>= 2.0.1) (<= 2.0.1)))
+    (containers (>= 3.5))
   )
   (maintainers
     "Xiaojia Rao"
