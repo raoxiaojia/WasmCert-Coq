@@ -4,3 +4,5 @@ let explode s =
   List.init (String.length s) (String.get s)
 
 let implode l = String.concat "" (List.map string_of_char l)
+
+module StringMap = Map.Make(String);;

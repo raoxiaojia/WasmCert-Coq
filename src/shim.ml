@@ -1,28 +1,17 @@
 module type Host = sig
 
-  (** The type of host functions. *)
-  type host_function
+  include Extract.Parametric_host
 
-  (** Equality of host functions. *)
-  val host_function_eq_dec : host_function -> host_function -> bool
-
-  (** The monad of host events. *)
+  (** The monad of host events. Only trivially used -- not in operation until itree is incorporated in the future *)
   type 'a host_event
   val host_ret : 'a -> 'a host_event
   val host_bind : 'a host_event -> ('a -> 'b host_event) -> 'b host_event
 
   (** Application of a host function in the host monad. *)
   val host_apply :
-    Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
+    host_state_type -> Extract.store_record -> Extract.function_type -> host_function -> Extract.value0 list ->
     (Extract.store_record * Extract.result) option host_event
 
-  (** Printing a host function. *)
-  val show_host_function : host_function -> string
-end
-
-module Extraction_instance = struct
-  include Extract.Extraction_instance
-  let show_host_function _ = assert false
 end
 
 module type InterpreterType = sig
@@ -36,11 +25,11 @@ module type InterpreterType = sig
   val ( and+ ) : 'a host_event -> 'b host_event -> ('a * 'b) host_event
   val pure : 'a -> 'a host_event
 
-  type store_record = Extract.Extraction_instance.store_record
+  type store_record = Extract.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
-  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
+  type interp_config_tuple = Extract.cfg_tuple_ctx
+  type res_tuple = Extract.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
@@ -77,7 +66,7 @@ module type InterpreterType = sig
   val run_parse_arg : string -> value option
 
   val pp_values : value list -> string
-  val pp_store : int -> Dune__exe__Extract.Extraction_instance.store_record -> string
+  val pp_store : int -> Extract.store_record -> string
   val pp_cfg_tuple_ctx_except_store :
     interp_config_tuple -> string
     
@@ -91,7 +80,13 @@ module type InterpreterType = sig
 
   val is_arithmetic_nan: Extract.number_type -> value -> bool
 
+  val is_funcref : value -> bool
+
+  val is_externref : value -> bool
+
 end
+
+module Extraction_instance = Extract.Extraction_instance (Ocaml_host.Ocaml_host)
 
 module Interpreter =
 functor (EH : Host) -> struct
@@ -114,11 +109,11 @@ functor (EH : Host) -> struct
     let* b = b in
     pure (a, b)
 
-  type store_record = Extract.Extraction_instance.store_record
+  type store_record = Extract.store_record
   type frame = Extract.frame
   type wasm_config_tuple = Extract.config_tuple
-  type interp_config_tuple = Extract.Extraction_instance.cfg_tuple_ctx
-  type res_tuple = Extract.Extraction_instance.run_step_ctx_result
+  type interp_config_tuple = Extraction_instance.cfg_tuple_ctx
+  type res_tuple = Extraction_instance.run_step_ctx_result
   type basic_instruction = Extract.basic_instruction
   type administrative_instruction = Extract.administrative_instruction
   type moduleinst = Extract.moduleinst
@@ -129,7 +124,7 @@ functor (EH : Host) -> struct
 
   (** Run one step of the interpreter. *)
   let run_one_step cfg d = 
-    Extraction_instance.run_one_step cfg (Convert.to_n d)
+    Extraction_instance.run_one_step (Obj.magic ()) cfg (Convert.to_n d)
 
   let run_v_init = Extraction_instance.run_v_init
 
@@ -142,7 +137,7 @@ functor (EH : Host) -> struct
     Extraction_instance.invoke_extern
 
   let interp_instantiate_wrapper s m extvals =
-    let (res, msg) = Extraction_instance.interp_instantiate_wrapper s m extvals in
+    let (res, msg) = Extraction_instance.interp_instantiate_wrapper (Obj.magic ()) s m extvals in
     (res, Utils.implode msg)
 
   let get_import_path m = 
@@ -170,7 +165,7 @@ functor (EH : Host) -> struct
     
 (* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Utils.implode (Extraction_instance.pp_res_cfg_except_store cfg Extract.N0 res)
+    Utils.implode (Extraction_instance.pp_res_cfg_except_store (Obj.magic ()) cfg Extract.N0 res)
 
   let pp_es es =
     Utils.implode (Extraction_instance.pp_administrative_instructions O es)
@@ -183,4 +178,8 @@ functor (EH : Host) -> struct
 
   let is_arithmetic_nan =
     Extraction_instance.is_arithmetic_nan
+
+  let is_funcref = Extraction_instance.is_funcref
+
+  let is_externref = Extraction_instance.is_externref
 end

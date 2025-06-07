@@ -1921,7 +1921,6 @@ Fixpoint run_multi_step_ctx (fuel: nat) (hs: host_state) (cfg: cfg_tuple_ctx) (d
 (** Note that this function should *never* be used in the extracted code due to the inefficient
     usage of fuel. It is only used internally during module instantiation.
  **)
-
 Definition run_multi_step_raw (hs: host_state) (fuel: nat) (s: store_record) (f: frame) (es: list administrative_instruction): (option unit) + (list value) :=
   match interp_cfg_of_wasm (s, (f, es)) with
   | exist cfg _ => run_multi_step_ctx fuel hs cfg 0

@@ -4,6 +4,9 @@ val to_nat : int -> Extract.nat
 (** Convert [int] to [Extract.positive]. **)
 val to_positive : int -> Extract.positive
 
+(** Convert [int] to [Extract.z]. **)
+val to_z : int -> Extract.z
+
 (** Convert [int] to [Extract.n]. **)
 val to_n : int -> Extract.n
 

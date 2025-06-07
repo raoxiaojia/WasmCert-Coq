@@ -1,29 +1,38 @@
 open Output
+open Utils
 
 module Host = struct
 
     (* We build on top of this host, wrapping it inside the type [out]. *)
-    module Host = Shim.Extraction_instance
+    module EH = Extract.Monadic_host(Ocaml_host.Ocaml_host)
 
-    type host_function = Host.host_function
-    let host_function_eq_dec = Host.host_function_eq_dec
+    type host_function = EH.host_function
+    let host_function_eq_dec = EH.host_function_eq_dec
 
-    type 'a host_event = 'a out Host.host_event
-    let host_ret v = Host.host_ret (OK v)
+    let hfc = EH.hfc
+
+    type host_state_type = EH.host_state_type
+
+    type 'a host_event = 'a out EH.host_event
+
+    let host_ret v = EH.host_ret (OK v)
+
     let host_bind v cont =
-      Host.host_bind v (function
+      EH.host_bind v (function
         | OK v -> cont v
-        | Error msg -> Host.host_ret (Error msg))
+        | Error msg -> EH.host_ret (Error msg))
 
-    let host_apply st t h vs =
-      Host.host_bind (Host.host_apply st t h vs) (fun r -> host_ret r)
+    let host_apply_pure = EH.host_apply_pure
 
-    let show_host_function = Host.show_host_function
+    (* A trivial wrapper -- change after actually using a monadic structure *)
+    let host_apply hs s ft hf vs =
+      match EH.host_apply_pure hs s ft hf vs with
+      | (hs', ores) -> OK ores
 
-    let error msg = Host.host_ret (Error msg)
+    let error msg = EH.host_ret (Error msg)
 
     let pmatch ok error v =
-      Host.host_bind v (function
+      EH.host_bind v (function
         | OK v -> host_ret (ok v)
         | Error msg -> host_ret (error msg))
 
@@ -88,9 +97,6 @@ let eval_wasm_cfg verbosity max_call_depth cfg =
   debug_info verbosity intermediate (fun _ ->
     Printf.sprintf "\nExecuting configuration:\n%s\n" (pp_cfg_tuple_ctx_except_store interp_cfg_inst));
   eval_interp_cfg verbosity 1 max_call_depth interp_cfg_inst 0
-
-
-module StringMap = Map.Make(String);;
 
 type host_extern_store = ((Interpreter.externval StringMap.t) StringMap.t) * (string StringMap.t)
 

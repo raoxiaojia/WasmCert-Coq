@@ -14,6 +14,10 @@ let rec to_positive z =
     else 
       Extract.XI pos'
 
+let to_z z = 
+  if z = 0 then Extract.Z0
+  else Zpos (to_positive z)
+
 let to_n z =
   if z = 0 then Extract.N0
   else Npos (to_positive z)

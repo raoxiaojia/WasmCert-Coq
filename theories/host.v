@@ -33,7 +33,7 @@ Context `{hfc: host_function_class} `{memory: Memory}.
   This can be non-deterministic. **)
 
 Class host := {
-    host_state : eqType (** For the relation-based version, we assume some kind of host state. **) ;
+    host_state : Type (** For the relation-based version, we assume some kind of host state. **) ;
     host_application : host_state -> store_record -> function_type -> host_function -> seq value ->
                        host_state -> option (store_record * result) -> Prop
                        (** An application of the host function. **) ;
@@ -52,23 +52,3 @@ Class host := {
   }.
 
 End Predicate.
-
-(** ** Executable Host **)
-
-(** We start with a host expressed as a predicate, useful for proofs. **)
-
-Section Executable.
-
-Context `{hfc: host_function_class} `{memory: Memory}.
-
-Class executable_host := make_executable_host {
-    host_event : Type -> Type (** The events that the host actions can yield. **) ;
-    host_monad : Monad host_event (** They form a monad. **) ;
-    host_apply : store_record -> function_type -> host_function -> seq value ->
-                 host_event (option (store_record * result))
-                 (** The application of a host function, returning a value in the monad. **)
-  }.
-
-End Executable.
-
-Arguments host_apply [_ _].
