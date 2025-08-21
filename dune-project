@@ -24,6 +24,7 @@
     (linenoise (>= 1.4.0))
     (mdx (>= 1.9.0))
     (wasm (and (>= 2.0.2) (<= 2.0.2)))
+    (quickchick (>= 2.1.0))
   )
   (maintainers
     "Xiaojia Rao"
