@@ -1,202 +1,251 @@
 From mathcomp Require Import ssreflect ssrbool eqtype seq ssrnat.
 From Coq Require Import BinInt BinNat NArith Lia Uint63 String.
-From Wasm Require Import interpreter_ctx instantiation_sound type_preservation.
+From Wasm Require Import interpreter_ctx instantiation_sound type_preservation extraction_instance binary_format_printer type_checker.
+
+From QuickChick Require Import QuickChick.
 
 Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(*
-  QC_Admin_Preservation.v
-  ------------------------
-  QuickChick example for WasmCert-Coq:
-  - Random generation of *administrative* instructions
-  - One-step preservation test: if config_tuple is well-typed and steps to config_tuple', then config_tuple' is well-typed.
+Import Extraction_instance.
 
-  Minimal edits required:
-    • Replace the five "ADAPT ME" notations below with the exact names from WasmCert-Coq.
-    • If your step function has a different shape (relation vs. function), use the alternative checker near the end.
+Definition cfg := config_tuple.
 
-  Requires:
-    opam install coq-quickchick
-*)
-
-From QuickChick Require Import QuickChick.
 Import QcDefaultNotation.
 Open Scope qc_scope.
 
-(* === WasmCert-Coq imports (names can differ a bit between releases) === *)
-(* Try these; if they don’t match your tree, search for the modules that define:
-     - values, instructions (surface + administrative), configurations
-     - the executable small-step function
-     - the boolean typechecker for configurations (README mentions soundness+completeness)
-   and adjust the "Require Import" lines and the five notations below. *)
-From Wasm Require Import datatypes_properties opsem typing type_checker type_preservation interpreter_ctx extraction_instance memory_vec.
+Definition gen_i32 : G i32 :=
+  oneOf [ returnGen Wasm_int.Int32.zero;
+           returnGen Wasm_int.Int32.one].
 
-(* ---------- Small adapter: tweak these 5 lines to your repo ---------- *)
-(* ADAPT ME: configuration type *)
+Instance Show_i32 : Show i32.
+  constructor.
+  refine (fun x => pp.pp_value_num (VAL_int32 x)).
+Defined.
 
-Definition stack_limit : N := 65536%N.
+Global Instance Gen_i32 : Gen i32 :=
+  {| arbitrary := gen_i32 |}.
 
-Section qc.
-  Import Extraction_instance.
-  Import Memory_instance.
-  
-(*
-Notation "<< hs , config_tuple , d >>" := (@RSC_normal _ _ _ hs config_tuple d).
-
-
-Check RSC_normal.
-
-Definition stepf (c: config_tuple) : option config_tuple :=
-  match interp_config_tuple_of_wasm c with
-  | exist _ c_ctx _ =>
-    match run_one_step c_ctx stack_limit with
-    | RSC_normal _ config_tuple' d' _ =>
-        ctx_to_config_tuple config_tuple'
-    | RSC_value _ _ vs =>
-        to_e_list vs
-    | _ => None
-    end
+Definition shrink_i32 (x: i32) : list i32 :=
+  match x with
+  | _ => nil
   end.
 
-  
-Parameter stepf : config_tuple -> option config_tuple.
-(* If you already have [stepf] in your repo, comment the Parameter and [Existing] it. *)
-*)
-(* ADAPT ME: boolean well-typedness checker for configurations *)
-Parameter typecheck_config_tuple : config_tuple -> bool.
-(* ADAPT ME: a simple constructor for an “empty-ish” configuration *)
-Parameter empty_config_tuple : config_tuple.
+Instance Shrink_i32 : Shrink i32 :=
+  {| shrink := shrink_i32 |}.
 
-(* If you have decidable types for “values”, “surface instr”, etc., import/derive them.
-   Below are basic generators that don’t rely on deriving instances for Wasm’s big types. *)
+Instance Arbitrary_i32 : Arbitrary i32 :=
+  Build_Arbitrary _ Gen_i32 Shrink_i32.
 
-(* === Small, size-bounded generators for Wasm numerics and values === *)
+Definition gen_i64 : G i64 :=
+  oneOf [ returnGen Wasm_int.Int64.zero;
+           returnGen Wasm_int.Int64.one].
 
-(* A tiny numeric generator to avoid huge terms that shrink slowly. *)
-Definition gen_i32 : G Z :=
-  freq [ (4%nat, returnGen 0%Z)
-       ; (4%nat, returnGen 1%Z)
-       ; (4%nat, returnGen (-1)%Z)
-       ; (1%nat, fmap Z.of_nat (choose (0%nat, 256%nat)))
-       ].
+Instance Show_i64 : Show i64.
+  constructor.
+  refine (fun x => pp.pp_value_num (VAL_int64 x)).
+Defined.
 
-(* You likely have a [val] type with constructors like vi32/vi64/vf32/vf64.
-   Replace/extend this as needed. *)
+Global Instance Gen_i64 : Gen i64 :=
+  {| arbitrary := gen_i64 |}.
 
-Definition vi32 z := VAL_num (VAL_int32 (Wasm_int.int_of_Z i32m z)).
+Definition shrink_i64 (x: i64) : list i64 :=
+  match x with
+  | _ => nil
+  end.
 
-Definition gen_val : G value :=
-  fmap vi32 gen_i32.
+Instance Shrink_i64 : Shrink i64 :=
+  {| shrink := shrink_i64 |}.
 
-(* === Generating small surface instruction fragments (to embed in admin instrs) === *)
+Instance Arbitrary_i64 : Arbitrary i64 :=
+  Build_Arbitrary _ Gen_i64 Shrink_i64.
 
-(* Replace these with your repo's concrete instruction constructors. *)
-Parameter instr : Set.
-Parameter I_const_i32 : Z -> instr.
+Print Wasm_float.FloatSize32.
 
-(* Trivially well-formed small instruction lists. Extend with more instructions if desired. *)
-Definition gen_small_instrs : G (list instr) :=
-  sized (fun sz =>
-    if sz is O then
-      elements [ [AI_basic (BI_nop)]; [AI_basic (BI_drop)]; [I_const_i32 0%Z] ]
-    else
-      oneOf_
-        [ returnGen [I_const_i32 0%Z; AI_basic (BI_drop)]
-        ; returnGen [AI_basic (BI_nop)]
-        ; returnGen [I_const_i32 1%Z]
-        ]).
+Definition gen_f32 : G f32 :=
+  oneOf [ returnGen Wasm_float.FloatSize32.zero;
+           returnGen (Wasm_float.FloatSize32.of_int Integers.Int.one)].
 
-(* === Administrative instructions ===
-   Typical constructors in WebAssembly mechanisations:
-     • trap
-     • invoke fidx
-     • label n (cont : list instr) (body : list instr)
-     • frame n (locals : list val) (code : list instr)
-   Adjust names/arity to the ones in WasmCert-Coq. *)
+Instance Show_f32 : Show f32.
+  constructor.
+  refine (fun x => pp.pp_value_num (VAL_float32 x)).
+Defined.
 
-Parameter AI_trap  : admin_instr.
-Parameter AI_invoke : nat -> admin_instr.
-Parameter AI_label : nat -> list instr -> list instr -> admin_instr.
-Parameter AI_frame : nat -> list val  -> list instr -> admin_instr.
+Global Instance Gen_f32 : Gen f32 :=
+  {| arbitrary := gen_f32 |}.
 
-(* Helper for bounded-length lists of values/instr *)
-Definition gen_list {A} (g : G A) (maxlen : nat) : G (list A) :=
-  bindGen (choose (0, maxlen)) (fun n => vectorOf n g).
+Definition shrink_f32 (x: f32) : list f32 :=
+  match x with
+  | _ => nil
+  end.
 
-(* “Valid” admin instruction generator:
-   - AI_trap is always valid.
-   - AI_label k cont body: keep tiny arities and tiny code to ease shrinking.
-   - AI_frame n locals code: generate locals with small length = n. *)
-Definition gen_admin_instr : G admin_instr :=
-  sized (fun sz =>
-    let k := Nat.min 2 sz in
-    oneOf_
-      [ returnGen AI_trap
-      ; fmap AI_invoke (choose (0, 0))                 (* only invoke 0; see config_tuple generator *)
-      ; cont <- gen_small_instrs ;;
-        bod  <- gen_small_instrs ;;
-        returnGen (AI_label k cont bod)
-      ; n <- choose (0, 2) ;;
-        locs <- gen_list gen_val n ;;
-        code <- gen_small_instrs ;;
-        returnGen (AI_frame n locs code)
-      ]).
+Instance Shrink_f32 : Shrink f32 :=
+  {| shrink := shrink_f32 |}.
 
-(* Show instances so Sample works nicely *)
-Parameter show_admin : admin_instr -> String.string.
-Instance show_admin_instr : Show admin_instr := { show := show_admin }.
+Instance Arbitrary_f32 : Arbitrary f32 :=
+  Build_Arbitrary _ Gen_f32 Shrink_f32.
 
-(* === Putting admin instructions inside a configuration === *)
+Definition gen_f64 : G f64 :=
+  oneOf [ returnGen Wasm_float.FloatSize64.zero;
+           returnGen (Wasm_float.FloatSize64.of_int Integers.Int.one)].
 
-(* You may already have a function to “inject” an admin instr as the current code in a config_tuple. *)
-Parameter config_tuple_set_admin_code : config_tuple -> admin_instr -> config_tuple.
+Instance Show_f64 : Show f64.
+  constructor.
+  refine (fun x => pp.pp_value_num (VAL_float64 x)).
+Defined.
 
-(* Construct a small, *valid* configuration for a generated admin instruction.
-   The idea:
-     - start from an “empty-ish but valid” configuration (module instantiated etc.) [empty_config_tuple]
-     - ensure table[0] exists when we generate AI_invoke 0
-   In many builds this will already be true in [empty_config_tuple]; if not, adapt [mk_config_tuple] here. *)
+Global Instance Gen_f64 : Gen f64 :=
+  {| arbitrary := gen_f64 |}.
 
-Definition mk_config_tuple (ai : admin_instr) : config_tuple :=
-  config_tuple_set_admin_code empty_config_tuple ai.
+Definition shrink_f64 (x: f64) : list f64 :=
+  match x with
+  | _ => nil
+  end.
 
-(* === Preservation checker ===
-   If config_tuple is well-typed and steps to config_tuple', then config_tuple' is well-typed. *)
+Instance Shrink_f64 : Shrink f64 :=
+  {| shrink := shrink_f64 |}.
 
-Definition preservation1 (c : config_tuple) : bool :=
-  if typecheck_config_tuple c then
-    match stepf c with
-    | None => true (* stuck or terminal ≈ nothing to check *)
-    | Some c' => typecheck_config_tuple c'
-    end
-  else true.
+Instance Arbitrary_f64 : Arbitrary f64 :=
+  Build_Arbitrary _ Gen_f64 Shrink_f64.
 
-(* Property over random *valid* admin instructions embedded in small configurations. *)
-Definition prop_preservation_admin : Checker :=
-  forAll gen_admin_instr (fun ai =>
-    let c := mk_config_tuple ai in
-    whenFail ("Counterexample admin instr:\n" ++ show ai)
-             (checker (preservation1 c))).
+Derive (Arbitrary, Show) for value_num.
 
-(* A quick smoke test: generate a few admin instructions to see the distribution *)
-Definition sample_admin : G admin_instr := gen_admin_instr.
+Derive Arbitrary for reference_type.
 
-(* === Shrinking (optional). QuickChick can handle without custom shrinkers for now. === *)
+Instance Show_value_ref : Show value_ref.
+  constructor.
+  refine (fun x => pp.pp_value_ref x).
+Defined.
 
-(* === Run examples === *)
+Derive Arbitrary for value_ref.
 
-(* Uncomment to see samples in CoqIDE/VSCoq:
-     Sample sample_admin.
-*)
+Definition gen_v128 : G v128 :=
+  oneOf [ returnGen (List.repeat Integers.Byte.zero 16);
+          returnGen (List.repeat Integers.Byte.one 16)
+    ].
 
-(* The actual QuickChick run: *)
-QuickChick prop_preservation_admin.
+Instance Show_v128 : Show v128.
+  constructor.
+  refine (fun x => pp.pp_value_vec (VAL_vec128 x)).
+Defined.
 
-(* === Alternative: if you only have a *relational* step (c --> c'), and a “one-step executor”
-       that tries to find a successor (or None if no step), swap [stepf] above accordingly.
-   If you need to build it from a relation [stepR : config_tuple -> config_tuple -> Prop], give QuickChick a
-   search bound or use the reference interpreter (the repo ships one). See README. *)
+Global Instance Gen_v128 : Gen v128 :=
+  {| arbitrary := gen_v128 |}.
 
-End qc.
+Definition shrink_v128 (x: v128) : list v128 :=
+  match x with
+  | _ => nil
+  end.
+
+Instance Shrink_v128 : Shrink v128 :=
+  {| shrink := shrink_v128 |}.
+
+Instance Arbitrary_v128 : Arbitrary v128 :=
+  Build_Arbitrary _ Gen_v128 Shrink_v128.
+
+Derive (Arbitrary, Show) for value_vec.
+
+Derive (Arbitrary, Show) for value.
+
+Derive (Arbitrary, Show) for number_type.
+
+Derive (Arbitrary, Show) for sx.
+
+Derive (Arbitrary, Show) for packed_type.
+
+Derive (Arbitrary, Show) for vector_type.
+
+Instance Show_reference_type : Show reference_type.
+  constructor.
+  refine (fun x => pp.pp_reference_type x).
+Defined.
+
+Derive (Arbitrary, Show) for value_type.
+
+Derive Arbitrary for unop_i.
+Derive Arbitrary for unop_f.
+Derive Arbitrary for unop.
+Derive Arbitrary for binop_i.
+Derive Arbitrary for binop_f.
+Derive Arbitrary for binop.
+Derive Arbitrary for testop.
+Derive Arbitrary for relop_i.
+Derive Arbitrary for relop_f.
+Derive Arbitrary for relop.
+Derive Arbitrary for cvtop.
+Derive Arbitrary for vshape_i.
+Derive Arbitrary for vshape_f.
+Derive Arbitrary for vshape.
+
+(* Derive arbitrary doesn't work for records. *)
+Derive GenSized for memarg.
+Instance Shrink_memarg: Shrink memarg.
+  constructor.
+  refine (fun x => cons x nil).
+Defined.
+
+Instance Arbitrary_memarg: Arbitrary memarg.
+Defined.
+
+Derive Arbitrary for load_vec_arg.
+Derive Arbitrary for block_type.
+
+Print arbitrarySized_impl_block_type.
+
+(* Requires using thunkGen for laziness, else there would be exponential
+ blowups? https://github.com/QuickChick/QuickChick/issues/370 *)
+Definition qc_gen {T: Type} (x: T) :=
+  thunkGen (fun _ => returnGen x).
+
+Definition gen_basic_instruction0 : G basic_instruction :=
+  oneOf [ qc_gen BI_nop;
+          qc_gen BI_drop
+    ].
+
+Definition gen_list_ub {T: Type} (f: G T) (ub: nat) : G (list T) :=
+  bindGen (choose (0, ub)) (fun n: nat =>
+                       sequenceGen (List.repeat f n)).
+
+Fixpoint G_basic_instruction (sz: nat) : G basic_instruction :=
+  match sz with
+  | 0 => gen_basic_instruction0
+  | S sz' =>
+      freq
+        [ (sz',
+             thunkGen (fun _ =>
+                         bindGen arbitrary (fun bt: block_type =>
+                                              (thunkGen (fun _ =>
+                                                           bindGen (gen_list_ub (G_basic_instruction sz') sz') (fun bes => returnGen (BI_block bt bes)))))));
+          (1, thunkGen (fun _ => gen_basic_instruction0))
+        ]
+         end.
+         
+Instance GenSized_basic_instruction: GenSized basic_instruction.
+  constructor.
+  refine G_basic_instruction.
+Defined.
+
+Instance Show_basic_instruction: Show basic_instruction.
+  constructor.
+  refine ((fun x => pp.pp_basic_instruction 0 x)).
+Defined.
+
+Parameter hs: host_state.
+
+Definition basic_instruction_preserve (bes: basic_instruction) : bool :=
+  (negb (b_e_type_checker empty_t_context [::bes] (Tf nil nil))) ||
+    (
+      match run_multi_step_raw Extraction_instance.host_application_impl_correct hs 100 empty_store_record empty_frame [::AI_basic bes] with
+      | inl _ => false
+      | inr _ => true
+      end
+        ).
+
+QuickChick (forAll (G_basic_instruction 5) basic_instruction_preserve).
+
+Sample (G_basic_instruction 5).
+
+Derive Arbitrary for basic_instruction.
+
+Derive ArbitrarySizedSuchThat for (fun x => config_correct x).

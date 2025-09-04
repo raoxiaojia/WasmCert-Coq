@@ -18,6 +18,7 @@ Module Extraction_instance.
 
 Section DummyHost.
 
+#[export]
 Existing Instance Memory_instance.memory_instance.
   
 Definition host_function := void.
