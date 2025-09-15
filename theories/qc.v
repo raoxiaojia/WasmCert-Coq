@@ -240,7 +240,78 @@ Definition basic_instruction_preserve (bes: basic_instruction) : bool :=
       | inl _ => false
       | inr _ => true
       end
-        ).
+    ).
+
+Parameter T: Type.
+Parameter ind1_simple_ok: T -> Type.
+Parameter ind1_complex_ok: T -> Type.
+
+Section test1.
+  Context (ind2_ok: T -> Type).
+  Inductive ind1: T -> Type :=
+  | ind1_simple: forall t,
+      ind1_simple_ok t ->
+      ind1 t
+  | ind1_complex: forall t,
+      ind1_complex_ok t ->
+      ind2_ok t ->
+      ind1 t
+  .
+  
+Definition ind1_measure {t: T} (e: ind1 t) (ind2_measure: forall t', ind2_ok t' -> nat) : nat :=
+  match e with
+  | ind1_simple Hsimple => 0
+  | ind1_complex Hcomplex Hind2 =>
+      S (ind2_measure _ Hind2)
+  end.
+
+End test1.
+
+Parameter ind2_side_cond: T -> Type.
+
+Section test2.
+  Inductive ind2: T -> Type :=
+  | ind2_make: forall (t: T),
+      ind1 ind2 t ->
+      ind2_side_cond t ->
+      ind2 t
+  .
+
+End test2.
+
+Fixpoint ind2_measure {t: T} (e: ind2 t) : nat :=
+  match e with
+  | @ind2_make t Hind1 Hside => ind1_measure Hind1 (fun t' Hind2 => @ind2_measure t' Hind2)
+  end.
+
+Definition actual_ind1 (t: T): Type :=
+  ind1 ind2 t.
+
+Definition actual_ind1_measure {t: T} (e: actual_ind1 t) :=
+  ind1_measure e (fun t' Hind2 => @ind2_measure t' Hind2).
+
+Lemma actual_ind1_ind: forall (P: T -> Type),
+    (forall t, ind1_simple_ok t -> P t) ->
+    (forall t, actual_ind1 t -> P t).
+Proof.
+  move => P Hbase t Hind1.
+  remember (actual_ind1_measure Hind1) as m.
+  generalize dependent Hind1.
+  induction m as [ | m' IH]; destruct Hind1 as [ | ? ? Hind2] => //=.
+  - move => ?; by apply Hbase.
+  - move => [Hmeasure].
+    destruct Hind2 as [? Hind1 Hside].
+    simpl in Hmeasure.
+    by specialize (IH _ Hmeasure).
+Qed.
+    
+Lemma test_ind1: forall (t: T),
+    actual_ind1 t ->
+    ind1_simple_ok t.
+Proof.
+  move => t Hind1.
+  by apply actual_ind1_ind.
+Qed.
 
 QuickChick (forAll (G_basic_instruction 5) basic_instruction_preserve).
 
