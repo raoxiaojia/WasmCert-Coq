@@ -6,11 +6,11 @@ From Wasm Require Import memory host interpreter_ctx instantiation_func pp.
 From ExtLib Require Import Structures.Monad.
 From ExtLib Require Import IdentityMonad.
 
-From Wasm Require Import memory_vec.
+From Wasm Require Import memory_list.
 
 Module Memory_instance.
 
-  Definition memory_instance := Memory_vec.
+  Definition memory_instance := Memory_list.
   
 End Memory_instance.
 

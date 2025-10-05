@@ -29,7 +29,7 @@ Extraction Language OCaml.
 
 Extract Constant lookup_N => "EfficientExtraction.lookup_N_safe".
 
-Extract Constant memory_vec.array "'a" => "Parray.t".
+(*Extract Constant memory_vec.array "'a" => "Parray.t".
 Extraction Inline memory_vec.array.
 
 Extract Constant memory_vec.arr_make => "Parray.make".
@@ -39,6 +39,7 @@ Extract Constant memory_vec.arr_default => "Parray.default".
 Extract Constant memory_vec.arr_set => "Parray.set".
 Extract Constant memory_vec.arr_length => "Parray.length".
 Extract Constant memory_vec.arr_copy => "Parray.copy".
+*)
 
 Extract Constant SIMD_ops.app_vunop_str => "SIMD_ops.app_vunop_str".
 Extract Constant SIMD_ops.app_vbinop_str => "SIMD_ops.app_vbinop_str".
