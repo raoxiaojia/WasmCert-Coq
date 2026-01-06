@@ -43,7 +43,7 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    interp_config_tuple -> Z.t -> res_tuple
+    interp_config_tuple -> Extracted_z.extracted_z -> res_tuple
 
   (* Given a store and an admin instruction list to run, construct the corresponding interpreter configuration to run. *)
   val run_v_init : 

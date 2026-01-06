@@ -40,7 +40,7 @@ module type InterpreterType = sig
 
   (** Run one step of the interpreter. *)
   val run_one_step :
-    interp_config_tuple -> Z.t -> res_tuple
+    interp_config_tuple -> Extracted_z.extracted_z -> res_tuple
 
   val run_v_init : 
     store_record -> administrative_instruction list -> interp_config_tuple option
@@ -165,7 +165,7 @@ functor (EH : Host) -> struct
     
 (* Depth doesn't matter for pretty printing cfg *)
   let pp_res_cfg_except_store cfg res =
-    Extraction_instance.pp_res_cfg_except_store (Obj.magic ()) cfg (Utils.z_of_int 0) res
+    Extraction_instance.pp_res_cfg_except_store (Obj.magic ()) cfg (Extracted_z.z_of_int 0) res
 
   let pp_es es =
     Extraction_instance.pp_administrative_instructions O es
