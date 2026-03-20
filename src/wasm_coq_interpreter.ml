@@ -1,5 +1,16 @@
 (** Main file for the Wasm interpreter **)
 
+(** Read a list of source files as binary strings. *)
+let read_files srcs =
+  List.map (fun dest ->
+    if not (Sys.file_exists dest) || Sys.is_directory dest then
+      invalid_arg (Printf.sprintf "No file %s found." dest)
+    else
+      let in_channel = open_in_bin dest in
+      let s = really_input_string in_channel (in_channel_length in_channel) in
+      close_in in_channel;
+      s) srcs
+
 (** Main function *)
 let process_args_and_run verbosity text no_exec max_call_depth srcs func_name src_module_name arg_strings =
   let open Execute.Host in
@@ -8,15 +19,7 @@ let process_args_and_run verbosity text no_exec max_call_depth srcs func_name sr
   try
     (** Preparing the files. *)
     (** Each file should contain a single Wasm module binary. The modules will be instantiated by their order. *)
-    let files =
-      List.map (fun dest ->
-        if not (Sys.file_exists dest) || Sys.is_directory dest then
-          invalid_arg (Printf.sprintf "No file %s found." dest)
-        else
-          let in_channel = open_in_bin dest in
-          let s = really_input_string in_channel (in_channel_length in_channel) in
-          close_in in_channel;
-          s) srcs in
+    let files = read_files srcs in
     let mnames = List.map extract_module_name srcs in
     let* modules = parse_modules verbosity text files in
     let (starting_wasm_store, starting_host_store) = Ocaml_host.starting_wasm_host_store in
@@ -46,16 +49,8 @@ let wast_budget = 256
 
 (** Similar to [process_args_and_run], but differs in the output type. *)
 let process_args_and_run_out verbosity text no_exec wast_mode wast_timeout max_call_depth srcs func_name src_module_name args =
-  (if wast_mode then 
-    let files =
-      List.map (fun dest ->
-        if not (Sys.file_exists dest) || Sys.is_directory dest then
-          invalid_arg (Printf.sprintf "No file %s found." dest)
-        else
-          let in_channel = open_in_bin dest in
-          let s = really_input_string in_channel (in_channel_length in_channel) in
-          close_in in_channel;
-          s) srcs in
+  (if wast_mode then
+    let files = read_files srcs in
     match files with
     | [] -> Execute.Host.error "No wast file provided"
     | [scriptstr] -> 
@@ -130,7 +125,7 @@ let cmd =
       `P "Report them at https://github.com/WasmCert/WasmCert-Coq/issues"; ]
   in
   Cmd.v 
-     (Cmd.info "wasm_interpreter" ~version:"c9b010d-dirty" ~doc ~exits ~man ~man_xrefs)
+     (Cmd.info "wasm_interpreter" ~version:"2.2.1" ~doc ~exits ~man ~man_xrefs)
      Term.(ret (const process_args_and_run_out $ verbosity $ text $ no_exec $ wast $ wast_timeout $ max_call_depth $ srcs $ func_name $ module_name $ args ))
 
   
