@@ -42,7 +42,10 @@ run_one() {
     return
   fi
 
-  echo "$output"
+  # Tag progress and result lines with the filename for disambiguation
+  echo "$output" | sed \
+    -e "s|\rTests passed:|\rTests passed ($base):|g" \
+    -e "s|Result:|Result ($base):|g"
 
   # Strip ANSI codes and CR in one pass
   local cleaned
