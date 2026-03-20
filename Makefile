@@ -8,6 +8,12 @@ SCRIPT := ./run_wast.sh
 FOLDER ?=
 FILTER ?=
 
-.PHONY: run_wast
+.PHONY: run_wast test clean
 run_wast:
 	$(SCRIPT) "$(FOLDER)" "$(FILTER)"
+
+test:
+	$(SCRIPT)
+
+clean:
+	dune clean
