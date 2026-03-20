@@ -44,10 +44,10 @@ let parse_module verbosity text mstr =
 (* Parse a list of modules. *)
 let rec parse_modules_acc verbosity text files acc =
   match files with
-  | [] -> pure acc
+  | [] -> pure (List.rev acc)
   | f :: files' ->
     let* m = parse_module verbosity text f in
-    parse_modules_acc verbosity text files' (acc @ [m])
+    parse_modules_acc verbosity text files' (m :: acc)
 
 let parse_modules verbosity text files =
   parse_modules_acc verbosity text files []
@@ -58,10 +58,10 @@ let parse_arg arg =
 (* Parsing the arguments of a function call in text format. *)
 let rec parse_args_acc args acc = 
   (match args with
-  | [] -> pure acc
-  | a :: args' -> 
+  | [] -> pure (List.rev acc)
+  | a :: args' ->
     (match parse_arg a with
-    | Some a' -> parse_args_acc args' (acc @ [a'])
+    | Some a' -> parse_args_acc args' (a' :: acc)
     | None -> Execute.Host.from_out (Error ("Invalid argument: " ^ a))
     )
   )

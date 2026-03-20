@@ -5,8 +5,6 @@ From HB Require Import structures.
 From Wasm Require Import numerics memory_vec binary_format_parser text_format_parser host interpreter_ctx instantiation_func pp.
 From ExtLib Require Import Structures.Monad IdentityMonad.
 
-From Wasm Require Import memory_vec binary_format_parser text_format_parser.
-
 (* This determines the memory instance used in the extracted runtime *)
 #[export]
 Instance memory_instance : BlockUpdateMemory := Memory_vec.

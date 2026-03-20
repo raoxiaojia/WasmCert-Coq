@@ -92,10 +92,10 @@ let wasm_val_to_coq wval =
 
 let rec wasm_vals_to_coq_aux args acc = 
   (match args with
-  | [] -> pure acc
-  | a :: args' -> 
+  | [] -> pure (List.rev acc)
+  | a :: args' ->
     (match wasm_val_to_coq a with
-    | Some a' -> wasm_vals_to_coq_aux args' (acc @ [a'])
+    | Some a' -> wasm_vals_to_coq_aux args' (a' :: acc)
     | None -> Execute.Host.from_out (Error ("Invalid argument in Wast script"))
     )
   )
