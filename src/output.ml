@@ -32,9 +32,11 @@ let debug_info verbosity min_level ?(style=normal) f =
     flush stderr
   )
 
+(* Currently unused; kept for potential future use. *)
 let debug_info_span verbosity min_level max_level ?(style=normal) f =
   if verbosity <= max_level then debug_info verbosity min_level ~style f
 
+(* Currently unused; kept for potential future use. *)
 let wait_message verbosity =
   (* yuck *)
   debug_info verbosity 2 (fun () -> Printf.sprintf "...");
