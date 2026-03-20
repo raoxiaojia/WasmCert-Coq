@@ -11,30 +11,6 @@ Unset Printing Implicit Defensive.
 
 (* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations *)
 
-(* Getting the count of each type of imports from a module. This is to calculate the correct shift for indices of the exports in the Wasm store later. *)
-Definition get_import_func_count (m: module) :=
-  length (pmap (fun x => match x.(imp_desc) with
-                      | MID_func id => Some id
-                      | _ => None
-                      end) m.(mod_imports)).
-
-Definition get_import_table_count (m: module) :=
-  length (pmap (fun x => match x.(imp_desc) with
-                      | MID_table id => Some id
-                      | _ => None
-                      end) m.(mod_imports)).
-Definition get_import_mem_count (m: module) :=
-  length (pmap (fun x => match x.(imp_desc) with
-                      | MID_mem id => Some id
-                      | _ => None
-                      end) m.(mod_imports)).
-
-Definition get_import_global_count (m: module) :=
-  length (pmap (fun x => match x.(imp_desc) with
-                      | MID_global id => Some id
-                      | _ => None
-                      end) m.(mod_imports)).
-
 Lemma ext_funcs_lookup_exist (modexps: list extern_value) n fn:
   List.nth_error (ext_funcs modexps) n = Some fn ->
   exists k, List.nth_error modexps k = Some (EV_func fn).
