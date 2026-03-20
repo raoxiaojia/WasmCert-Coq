@@ -21,7 +21,7 @@ jobs:
         opam_file:
           - 'coq-wasm.opam'
         coq_version:
-          - '9.0'
+          - '9.1'
       fail-fast: true
 
     steps:
