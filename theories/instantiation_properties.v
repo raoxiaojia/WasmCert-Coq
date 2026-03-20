@@ -9,143 +9,86 @@ Set Implicit Arguments.
 Unset Strict Implicit.
 Unset Printing Implicit Defensive.
 
-(* Some of the proofs were adapted from the Iris branch -- therefore the stdpp notations *)
+(** General lemmas about [pmap] and [List.nth_error]. *)
+Lemma pmap_lookup_exist aT rT f (l: seq aT) n (b: rT) :
+  List.nth_error (pmap f l) n = Some b ->
+  exists k (a: aT), List.nth_error l k = Some a /\ f a = Some b.
+Proof.
+  move: n b.
+  induction l as [| x l' IHl] => n b Hlookup; first by destruct n.
+  simpl in Hlookup.
+  destruct (f x) eqn:Hfx.
+  - destruct n; simpl in *.
+    + injection Hlookup as ->; by exists 0, x.
+    + apply IHl in Hlookup as [k [a [Hnth Hfa]]]; by exists (S k), a.
+  - apply IHl in Hlookup as [k [a [Hnth Hfa]]]; by exists (S k), a.
+Qed.
 
-Lemma ext_funcs_lookup_exist (modexps: list extern_value) n fn:
+Lemma pmap_lookup_exist_inv aT rT f (l: seq aT) n (a: aT) (b: rT) :
+  List.nth_error l n = Some a ->
+  f a = Some b ->
+  exists k, List.nth_error (@pmap aT rT f l) k = Some b.
+Proof.
+  move: n a b.
+  induction l as [| x l' IHl] => n a b Hnth Hfa; first by destruct n.
+  destruct n; simpl in *.
+  - inversion Hnth; subst; rewrite Hfa; by exists 0.
+  - apply (IHl _ _ _ Hnth) in Hfa as [k Hk].
+    destruct (f x); [by exists (S k) | by exists k].
+Qed.
+
+(** Specialized corollaries for [extern_value] projections. *)
+Lemma ext_funcs_lookup_exist (modexps: list extern_value) n fn :
   List.nth_error (ext_funcs modexps) n = Some fn ->
   exists k, List.nth_error modexps k = Some (EV_func fn).
 Proof.
-  move: n fn.
-  induction modexps; move => n tn Hextfunclookup; try by destruct n => //=.
-  simpl in Hextfunclookup.
-  destruct a => //. 
-  { simpl in *.
-    destruct n; simpl in *; first by inversion Hextfunclookup; subst; exists 0.
-    apply IHmodexps in Hextfunclookup.
-    destruct Hextfunclookup as [k ?].
-    by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hextfunclookup.
-  all: destruct Hextfunclookup as [k ?].
-  all: by exists (S k).
+  move => H; apply pmap_lookup_exist in H as [k [a [Hnth Hfa]]].
+  exists k; destruct a; by inversion Hfa; subst.
 Qed.
 
-Lemma ext_tables_lookup_exist (modexps: list extern_value) n tn:
+Lemma ext_tables_lookup_exist (modexps: list extern_value) n tn :
   List.nth_error (ext_tables modexps) n = Some tn ->
   exists k, List.nth_error modexps k = Some (EV_table tn).
 Proof.
-  move: n tn.
-  induction modexps; move => n tn Hexttablookup; try by destruct n => //=.
-  simpl in Hexttablookup.
-  destruct a => //. 
-  2: { simpl in *.
-       destruct n; simpl in *; first by inversion Hexttablookup; subst; exists 0.
-       apply IHmodexps in Hexttablookup.
-       destruct Hexttablookup as [k ?].
-       by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hexttablookup.
-  all: destruct Hexttablookup as [k ?].
-  all: by exists (S k).
+  move => H; apply pmap_lookup_exist in H as [k [a [Hnth Hfa]]].
+  exists k; destruct a; by inversion Hfa; subst.
 Qed.
 
-Lemma ext_mems_lookup_exist (modexps: list extern_value) n mn:
+Lemma ext_mems_lookup_exist (modexps: list extern_value) n mn :
   List.nth_error (ext_mems modexps) n = Some mn ->
   exists k, List.nth_error modexps k = Some (EV_mem mn).
 Proof.
-  move: n mn.
-  induction modexps; move => n mn Hextmemlookup; try by destruct n => //=.
-  simpl in Hextmemlookup.
-  destruct a => //. 
-  3: { simpl in *.
-       destruct n; simpl in *; first try by inversion Hextmemlookup; subst; exists 0.
-       apply IHmodexps in Hextmemlookup.
-       destruct Hextmemlookup as [k ?].
-       by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hextmemlookup.
-  all: destruct Hextmemlookup as [k ?].
-  all: by exists (S k).
+  move => H; apply pmap_lookup_exist in H as [k [a [Hnth Hfa]]].
+  exists k; destruct a; by inversion Hfa; subst.
 Qed.
 
-Lemma ext_globals_lookup_exist (modexps: list extern_value) n fn:
+Lemma ext_globals_lookup_exist (modexps: list extern_value) n fn :
   List.nth_error (ext_globals modexps) n = Some fn ->
   exists k, List.nth_error modexps k = Some (EV_global fn).
 Proof.
-  move: n fn.
-  induction modexps; move => n tn Hextgloblookup; try by destruct n => //=.
-  simpl in Hextgloblookup.
-  destruct a => //. 
-  4: { simpl in *.
-       destruct n; simpl in *; first by inversion Hextgloblookup; subst; exists 0.
-       apply IHmodexps in Hextgloblookup.
-       destruct Hextgloblookup as [k ?].
-       by exists (S k).
-  }
-  all: simpl in *. 
-  all: apply IHmodexps in Hextgloblookup.
-  all: destruct Hextgloblookup as [k ?].
-  all: by exists (S k).
+  move => H; apply pmap_lookup_exist in H as [k [a [Hnth Hfa]]].
+  exists k; destruct a; by inversion Hfa; subst.
 Qed.
 
-Lemma ext_funcs_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_funcs_lookup_exist_inv (modexps: list extern_value) n idx :
   List.nth_error modexps n = Some (EV_func idx) ->
-  exists k, (List.nth_error (ext_funcs modexps) k = Some idx).
-Proof.
-  move : n idx.
-  induction modexps; move => n idx H; try by destruct n => //=.
-  destruct n; simpl in *.
-  { inversion H; subst; by exists 0 => /=. }
-  apply IHmodexps in H.
-  destruct H as [k Hl].
-  destruct a; try by exists k.
-  by exists (S k).
-Qed.
+  exists k, List.nth_error (ext_funcs modexps) k = Some idx.
+Proof. move => H; by eapply pmap_lookup_exist_inv; eauto. Qed.
 
-Lemma ext_tables_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_tables_lookup_exist_inv (modexps: list extern_value) n idx :
   List.nth_error modexps n = Some (EV_table idx) ->
-  exists k, (List.nth_error (ext_tables modexps) k = Some idx).
-Proof.
-  move : n idx.
-  induction modexps; move => n idx H; try by destruct n => //=.
-  destruct n; simpl in *.
-  { inversion H; subst; by exists 0 => /=. }
-  apply IHmodexps in H.
-  destruct H as [k Hl].
-  destruct a; try by exists k.
-  by exists (S k).
-Qed.
+  exists k, List.nth_error (ext_tables modexps) k = Some idx.
+Proof. move => H; by eapply pmap_lookup_exist_inv; eauto. Qed.
 
-Lemma ext_mems_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_mems_lookup_exist_inv (modexps: list extern_value) n idx :
   List.nth_error modexps n = Some (EV_mem idx) ->
-  exists k, (List.nth_error (ext_mems modexps) k = Some idx).
-Proof.
-  move : n idx.
-  induction modexps; move => n idx H; try by destruct n => //=.
-  destruct n; simpl in *.
-  { inversion H; subst; by exists 0 => /=. }
-  apply IHmodexps in H.
-  destruct H as [k Hl].
-  destruct a; try by exists k.
-  by exists (S k).
-Qed.
+  exists k, List.nth_error (ext_mems modexps) k = Some idx.
+Proof. move => H; by eapply pmap_lookup_exist_inv; eauto. Qed.
 
-Lemma ext_globals_lookup_exist_inv (modexps: list extern_value) n idx:
+Lemma ext_globals_lookup_exist_inv (modexps: list extern_value) n idx :
   List.nth_error modexps n = Some (EV_global idx) ->
-  exists k, (List.nth_error (ext_globals modexps) k = Some idx).
-Proof.
-  move : n idx.
-  induction modexps; move => n idx H; try by destruct n => //=.
-  destruct n; simpl in *.
-  { inversion H; subst; by exists 0 => /=. }
-  apply IHmodexps in H.
-  destruct H as [k Hl].
-  destruct a; try by exists k.
-  by exists (S k).
-Qed.
+  exists k, List.nth_error (ext_globals modexps) k = Some idx.
+Proof. move => H; by eapply pmap_lookup_exist_inv; eauto. Qed.
 
 Section Host.
 
