@@ -2,7 +2,7 @@
 (using coq 0.10)
 (using mdx 0.2)
 (name coq-wasm)
-(version 2.2.1)
+(version v2.2.1)
 
 (license MIT)
 (source (github WasmCert/WasmCert-Coq))
@@ -21,7 +21,6 @@
     (mdx (and (>= 1.9.0) :with-test))
     (wasm (and (>= 2.0.2) (<= 2.0.2)))
     (zarith (>= 1.11))
-    (menhir (<= 20250912))
   )
   (maintainers
     "Xiaojia Rao"
